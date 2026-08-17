@@ -34,77 +34,79 @@ export default function Navbar() {
     ];
 
     return (
-        <header className="sticky top-0 z-50 backdrop-blur-md bg-[#0B0E14]/80 border-b border-white/10">
-            <div className="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between">
-                {/* Logo */}
-                <Link href="/" className="flex items-center gap-2.5 font-bold tracking-wider group">
-                    <img 
-                        src="/logo.jpg" 
-                        alt="DoBallLaos Dooball Live" 
-                        className="h-10 w-10 object-cover rounded-full shadow-[0_0_15px_rgba(229,184,66,0.4)] group-hover:scale-105 transition-transform border border-amber-500/40" 
-                    />
-                    <div className="flex flex-col">
-                        <div className="flex items-center gap-0.5 font-black leading-none text-base">
-                            <span className="text-[#E5B842]">DoBall</span>
-                            <span className="text-white">Laos</span>
+        <>
+            <header className="sticky top-0 z-50 backdrop-blur-md bg-[#0B0E14]/80 border-b border-white/10">
+                <div className="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between">
+                    {/* Logo */}
+                    <Link href="/" className="flex items-center gap-2.5 font-bold tracking-wider group">
+                        <img 
+                            src="/logo.jpg" 
+                            alt="DoBallLaos Dooball Live" 
+                            className="h-10 w-10 object-cover rounded-full shadow-[0_0_15px_rgba(229,184,66,0.4)] group-hover:scale-105 transition-transform border border-amber-500/40" 
+                        />
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-0.5 font-black leading-none text-base">
+                                <span className="text-[#E5B842]">DoBall</span>
+                                <span className="text-white">Laos</span>
+                            </div>
+                            <span className="text-[9px] font-extrabold text-slate-400 tracking-widest mt-0.5">DOOBALL LIVE</span>
                         </div>
-                        <span className="text-[9px] font-extrabold text-slate-400 tracking-widest mt-0.5">DOOBALL LIVE</span>
-                    </div>
-                </Link>
+                    </Link>
 
-                {/* Navigation Menu */}
-                <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-                    {navLinks.map((link) => {
-                        const Icon = link.icon;
-                        const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
-                        
-                        return (
-                            <Link 
-                                key={link.href} 
-                                href={link.href} 
+                    {/* Navigation Menu */}
+                    <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
+                        {navLinks.map((link) => {
+                            const Icon = link.icon;
+                            const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
+                            
+                            return (
+                                <Link 
+                                    key={link.href} 
+                                    href={link.href} 
+                                    className={cn(
+                                        "flex items-center gap-2 transition-colors",
+                                        isActive ? "text-[#E5B842]" : "text-slate-400 hover:text-white"
+                                    )}
+                                >
+                                    <Icon className="w-4 h-4" /> {link.label}
+                                </Link>
+                            );
+                        })}
+                    </nav>
+
+                    {/* Language Switcher Actions */}
+                    <div className="flex items-center gap-3">
+                        {/* TH / LA Language Switcher */}
+                        <div className="flex items-center gap-1 bg-black/40 border border-white/10 p-1 rounded-full text-[11px] font-bold">
+                            <button
+                                onClick={() => setLang('th')}
                                 className={cn(
-                                    "flex items-center gap-2 transition-colors",
-                                    isActive ? "text-[#E5B842]" : "text-slate-400 hover:text-white"
+                                    "px-2.5 py-1 rounded-full transition-all cursor-pointer flex items-center gap-1.5",
+                                    lang === 'th' ? "bg-[#E5B842] text-black shadow-sm font-black" : "text-slate-400 hover:text-white"
                                 )}
+                                title="สลับเป็นภาษาไทย (TH)"
                             >
-                                <Icon className="w-4 h-4" /> {link.label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-
-                {/* Language Switcher Actions */}
-                <div className="flex items-center gap-3">
-                    {/* TH / LA Language Switcher */}
-                    <div className="flex items-center gap-1 bg-black/40 border border-white/10 p-1 rounded-full text-[11px] font-bold">
-                        <button
-                            onClick={() => setLang('th')}
-                            className={cn(
-                                "px-2.5 py-1 rounded-full transition-all cursor-pointer flex items-center gap-1.5",
-                                lang === 'th' ? "bg-[#E5B842] text-black shadow-sm font-black" : "text-slate-400 hover:text-white"
-                            )}
-                            title="สลับเป็นภาษาไทย (TH)"
-                        >
-                            <ThaiFlagIcon />
-                            <span>TH</span>
-                        </button>
-                        <button
-                            onClick={() => setLang('la')}
-                            className={cn(
-                                "px-2.5 py-1 rounded-full transition-all cursor-pointer flex items-center gap-1.5",
-                                lang === 'la' ? "bg-[#E5B842] text-black shadow-sm font-black" : "text-slate-400 hover:text-white"
-                            )}
-                            title="ປ່ຽນເປັນພາສາລາວ (LA)"
-                        >
-                            <LaoFlagIcon />
-                            <span>LA</span>
-                        </button>
+                                <ThaiFlagIcon />
+                                <span>TH</span>
+                            </button>
+                            <button
+                                onClick={() => setLang('la')}
+                                className={cn(
+                                    "px-2.5 py-1 rounded-full transition-all cursor-pointer flex items-center gap-1.5",
+                                    lang === 'la' ? "bg-[#E5B842] text-black shadow-sm font-black" : "text-slate-400 hover:text-white"
+                                )}
+                                title="ປ່ຽນເປັນພາສາລາວ (LA)"
+                            >
+                                <LaoFlagIcon />
+                                <span>LA</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </header>
 
-            {/* Mobile Bottom Navigation Bar (App Navigation Feel) */}
-            <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#0B0F17]/95 border-t border-white/10 backdrop-blur-xl px-3 py-1.5 flex items-center justify-around shadow-2xl">
+            {/* Mobile Bottom Navigation Bar (Fixed to Viewport Bottom 100%) */}
+            <nav className="fixed bottom-0 left-0 right-0 z-[999] md:hidden bg-[#0B0F17]/95 border-t border-white/10 backdrop-blur-xl px-3 py-2 flex items-center justify-around shadow-[0_-5px_25px_rgba(0,0,0,0.8)]">
                 {navLinks.map((link) => {
                     const Icon = link.icon;
                     const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
@@ -124,6 +126,6 @@ export default function Navbar() {
                     );
                 })}
             </nav>
-        </header>
+        </>
     );
 }
