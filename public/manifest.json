@@ -1,0 +1,24 @@
+{
+  "name": "Dooball Live - ดูบอลสดออนไลน์",
+  "short_name": "Dooball Live",
+  "description": "รวมลิงก์ดูบอลสด ถ่ายทอดสดฟุตบอลครบทุกลีก พรีเมียร์ลีก ยูฟ่า แชมเปียนส์ลีก คมชัด HD",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0B0F17",
+  "theme_color": "#E5B842",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
