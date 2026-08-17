@@ -9,6 +9,7 @@ import LiveChat from '@/components/LiveChat';
 import AdBanner from '@/components/ads/AdBanner';
 import MatchPrediction from '@/components/watch/MatchPrediction';
 import MatchLineups from '@/components/watch/MatchLineups';
+import MatchEventsTimeline from '@/components/watch/MatchEventsTimeline';
 import SeoMatchPreview from '@/components/watch/SeoMatchPreview';
 import SocialShareBar from '@/components/common/SocialShareBar';
 import { Radio, Clock, ShieldAlert, Film, Sparkles } from 'lucide-react';
@@ -152,6 +153,13 @@ export default function WatchClient({ slug }: { slug: string }) {
                                 onSelectStream={(stream) => setActiveStream(stream)}
                             />
                         )}
+
+                        {/* Match Live Events Timeline */}
+                        <MatchEventsTimeline
+                            events={currentMatch.events}
+                            homeTeamName={currentMatch.homeTeam?.name}
+                            awayTeamName={currentMatch.awayTeam?.name}
+                        />
 
                         {/* 1-Click Social Share Bar (LINE / Facebook / Messenger / X) */}
                         <SocialShareBar 

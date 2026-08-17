@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
-import { AlertCircle, Loader2, RefreshCw, Tv } from 'lucide-react';
+import { AlertCircle, Loader2, RefreshCw, Tv, PictureInPicture } from 'lucide-react';
 
 interface VideoPlayerProps {
     streamUrl?: string;
@@ -16,6 +16,29 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
     const [reloadKey, setReloadKey] = useState(0);
+    const [isPipSupported, setIsPipSupported] = useState(false);
+    const [isPipActive, setIsPipActive] = useState(false);
+
+    useEffect(() => {
+        if (typeof document !== 'undefined' && 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled) {
+            setIsPipSupported(true);
+        }
+    }, []);
+
+    const togglePip = async () => {
+        if (!videoRef.current) return;
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+                setIsPipActive(false);
+            } else {
+                await videoRef.current.requestPictureInPicture();
+                setIsPipActive(true);
+            }
+        } catch (err) {
+            console.error('Picture in Picture failed:', err);
+        }
+    };
 
     // ช่วยแกะ src ออกจาก string กรณีที่ Backend ส่งมาเป็น <iframe src="...">
     const getCleanUrl = useCallback((url?: string) => {
@@ -142,6 +165,18 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
 
     return (
         <div className="relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-white/10 shadow-2xl group">
+            {/* PiP Button (For HTML5 / HLS Video Player) */}
+            {!isEmbed && isPipSupported && (
+                <button
+                    onClick={togglePip}
+                    title="Picture-in-Picture (ย่อหน้าจอ)"
+                    className="absolute top-3 right-3 z-30 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-white/10 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs"
+                >
+                    <PictureInPicture className="w-4 h-4 text-[#E5B842]" />
+                    <span className="hidden sm:inline font-medium">{isPipActive ? 'ออกจาก PiP' : 'หน้าจอลอย'}</span>
+                </button>
+            )}
+
             {/* Loading Overlay */}
             {isLoading && !hasError && (
                 <div className="absolute inset-0 z-20 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center gap-3 text-white transition-opacity">

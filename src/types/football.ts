@@ -5,6 +5,15 @@ export interface StreamLink {
     quality?: string;   // "1080p", "720p"
 }
 
+export interface MatchEvent {
+    id?: string;
+    minute: number;
+    team: 'home' | 'away';
+    type: 'goal' | 'yellow_card' | 'red_card' | 'sub';
+    player: string;
+    assistOrSub?: string;
+}
+
 export interface Match {
     id: string;
     slug?: string;
@@ -30,6 +39,7 @@ export interface Match {
     streamLinks?: StreamLink[];
     h2h?: any[];
     lineup?: any;
+    events?: MatchEvent[];
 }
 
 export interface StandingRow {

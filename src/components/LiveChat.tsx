@@ -174,19 +174,51 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
         };
     }, [matchId]);
 
+    const [cooldown, setCooldown] = useState(0);
+
+    // ระบบกรองคำไม่งาม (Profanity Filter)
+    const filterProfanity = (text: string): string => {
+        const BAD_WORDS = [
+            'เหี้ย', 'ส้นตีน', 'ควย', 'เย็ด', 'แม่ง', 'สัตว์', 'เชี่ย', 'มึง', 'กู', 'กระจอก',
+            'fuck', 'shit', 'bitch', 'bastard', 'cunt', 'dick', 'asshole'
+        ];
+        let cleaned = text;
+        BAD_WORDS.forEach((word) => {
+            const regex = new RegExp(word, 'gi');
+            cleaned = cleaned.replace(regex, '***');
+        });
+        return cleaned;
+    };
+
+    // Cooldown countdown timer
+    useEffect(() => {
+        if (cooldown <= 0) return;
+        const timer = setInterval(() => {
+            setCooldown((prev) => Math.max(0, prev - 1));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [cooldown]);
+
     const handleJoinChat = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
         const name = (fd.get('nickname') as string)?.trim();
         if (name && name.length > 0) {
-            localStorage.setItem('chat_nickname', name);
-            setNickname(name);
+            const cleanName = filterProfanity(name);
+            localStorage.setItem('chat_nickname', cleanName);
+            setNickname(cleanName);
         }
     };
 
     const sendMessage = (textToSend?: string) => {
-        const messageText = textToSend || input.trim();
-        if (!messageText || !nickname) return;
+        const rawText = textToSend || input.trim();
+        if (!rawText || !nickname) return;
+
+        if (cooldown > 0) {
+            return;
+        }
+
+        const messageText = filterProfanity(rawText);
 
         const chatRef = ref(db, `chats/${matchId}`);
         push(chatRef, {
@@ -198,6 +230,7 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
             setMessages(prev => [...prev, { id: Date.now().toString(), text: messageText, user: nickname + " (offline)" }]);
         });
 
+        setCooldown(3); // 3 seconds slow mode cooldown
         if (!textToSend) setInput("");
     };
 
@@ -335,11 +368,11 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
                             />
                             <button
                                 type="submit"
-                                disabled={!input.trim()}
-                                className="bg-[#E5B842] disabled:bg-[#E5B842]/30 disabled:text-black/50 hover:bg-[#d4a737] text-black px-3.5 py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 cursor-pointer flex items-center gap-1"
+                                disabled={!input.trim() || cooldown > 0}
+                                className="bg-[#E5B842] disabled:bg-white/10 disabled:text-slate-400 hover:bg-[#d4a737] text-black px-3.5 py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 cursor-pointer flex items-center gap-1 min-w-[55px] justify-center"
                             >
                                 <Send className="w-3.5 h-3.5" />
-                                ส่ง
+                                {cooldown > 0 ? `${cooldown}s` : 'ส่ง'}
                             </button>
                         </div>
                     </form>
