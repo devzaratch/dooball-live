@@ -50,7 +50,7 @@ export default function WatchClient({ slug }: { slug: string }) {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_340px] gap-5 p-4 md:p-6 max-w-[1600px] mx-auto min-h-screen font-sans">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_340px] gap-5 p-3 md:p-6 pb-20 md:pb-6 max-w-[1600px] mx-auto min-h-screen font-sans">
 
             {/* ====== Left Sidebar (Match List) ====== */}
             <div className="order-3 lg:order-1 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-48px)] overflow-hidden">

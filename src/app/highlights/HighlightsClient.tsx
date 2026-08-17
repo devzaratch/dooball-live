@@ -128,7 +128,7 @@ export default function HighlightsClient() {
     });
 
     return (
-        <div className="flex flex-col gap-8 p-4 md:p-6 max-w-[1600px] mx-auto min-h-screen font-sans animate-[fadeIn_0.5s_ease-out]">
+        <div className="flex flex-col gap-6 md:gap-8 p-3 sm:p-4 md:p-6 pb-20 md:pb-6 max-w-[1600px] mx-auto min-h-screen font-sans animate-[fadeIn_0.5s_ease-out]">
             
             {/* Header Section */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B0F17] via-slate-950 to-slate-900 border border-white/10 p-6 md:p-8 shadow-2xl backdrop-blur-xl">

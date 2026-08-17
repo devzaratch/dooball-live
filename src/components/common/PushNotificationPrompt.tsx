@@ -71,8 +71,8 @@ export default function PushNotificationPrompt() {
 
     return (
         <>
-            {/* Floating Quick Alert Toggle Button (Bottom Left on Mobile/Desktop) */}
-            <div className="fixed bottom-5 left-5 z-40 flex items-center gap-2">
+            {/* Floating Quick Alert Toggle Button (Bottom Left, Positioned above Mobile Bottom Nav) */}
+            <div className="fixed bottom-20 left-4 md:bottom-5 md:left-5 z-40 flex items-center gap-2">
                 <button
                     onClick={permission === 'granted' ? () => sendTestNotification() : requestPermission}
                     className={cn(
