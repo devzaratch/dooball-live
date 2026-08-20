@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Match } from '@/types/football';
 import { Radio, Play, Clock, Tv } from 'lucide-react';
 import MatchReminderButton from '@/components/common/MatchReminderButton';
+import LiveViewerBadge from '@/components/common/LiveViewerBadge';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface MatchCardProps {
@@ -28,10 +29,13 @@ export default function MatchCard({ match }: MatchCardProps) {
                 </span>
                 
                 {isLive ? (
-                    <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[10px] sm:text-[11px] font-bold border border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.3)] animate-pulse">
-                        <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                        LIVE {match.currentMinute ? `${match.currentMinute}'` : ''}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[10px] sm:text-[11px] font-bold border border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.3)] animate-pulse">
+                            <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                            LIVE {match.currentMinute ? `${match.currentMinute}'` : ''}
+                        </span>
+                        <LiveViewerBadge matchId={match.id} isLive={true} variant="card_tag" />
+                    </div>
                 ) : match.status === 'FINISHED' ? (
                     <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-slate-400 bg-slate-800/80 px-2 sm:px-2.5 py-0.5 rounded-full border border-white/10">
                         จบการแข่งขัน

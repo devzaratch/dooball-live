@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { AlertCircle, Loader2, RefreshCw, Tv, PictureInPicture } from 'lucide-react';
+import LiveViewerBadge from '@/components/common/LiveViewerBadge';
 
 interface VideoPlayerProps {
     streamUrl?: string;
@@ -165,6 +166,9 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
 
     return (
         <div className="relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-white/10 shadow-2xl group">
+            {/* Live Concurrent Viewer Counter Overlay */}
+            <LiveViewerBadge matchId={matchSlug || 'live-stream'} isLive={true} variant="player_overlay" />
+
             {/* PiP Button (For HTML5 / HLS Video Player) */}
             {!isEmbed && isPipSupported && (
                 <button

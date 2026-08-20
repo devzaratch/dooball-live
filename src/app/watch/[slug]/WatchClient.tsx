@@ -12,6 +12,7 @@ import MatchLineups from '@/components/watch/MatchLineups';
 import MatchEventsTimeline from '@/components/watch/MatchEventsTimeline';
 import SeoMatchPreview from '@/components/watch/SeoMatchPreview';
 import SocialShareBar from '@/components/common/SocialShareBar';
+import LiveViewerBadge from '@/components/common/LiveViewerBadge';
 import { Radio, Clock, ShieldAlert, Film, Sparkles } from 'lucide-react';
 
 export default function WatchClient({ slug }: { slug: string }) {
@@ -102,12 +103,15 @@ export default function WatchClient({ slug }: { slug: string }) {
                                     ) : (
                                         <span className="text-lg font-black font-mono text-slate-500 my-0.5">VS</span>
                                     )}
-                                    <div className="mt-1">
+                                    <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
                                         {isLive ? (
-                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-bold border border-rose-500/20 animate-pulse">
-                                                <Radio className="w-3 h-3 text-rose-500" />
-                                                LIVE NOW
-                                            </span>
+                                            <>
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-bold border border-rose-500/20 animate-pulse">
+                                                    <Radio className="w-3 h-3 text-rose-500" />
+                                                    LIVE NOW
+                                                </span>
+                                                <LiveViewerBadge matchId={currentMatch.id} isLive={isLive} variant="badge" />
+                                            </>
                                         ) : currentMatch.status === 'FINISHED' ? (
                                             <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-semibold border border-white/5">
                                                 จบการแข่งขัน
