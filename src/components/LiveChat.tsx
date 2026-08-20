@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { ref, push, onChildAdded, DataSnapshot, Unsubscribe } from 'firebase/database';
+import { ref, push, onChildAdded, get, remove, DataSnapshot, Unsubscribe } from 'firebase/database';
 import { db } from '@/lib/firebase';
-import { User, Volume2, VolumeX, Sparkles, Send } from 'lucide-react';
+import { User, Volume2, VolumeX, Sparkles, Send, Trash2 } from 'lucide-react';
 
 interface ChatMessage {
     id: string;
@@ -141,10 +141,38 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
         if (savedName) setNickname(savedName);
     }, []);
 
+    // ระบบล้างแชทเก่าอัตโนมัติเมื่อหมดอายุเกิน 24 ชั่วโมง หรือเมื่อล้างแชทแบบแมนนวล
     useEffect(() => {
         setMessages([]);
 
         const chatRef = ref(db, `chats/${matchId}`);
+
+        // 1. ตรวจเช็กอายุข้อความเก่า (Auto-Clean Expired Messages > 24 Hours)
+        get(chatRef).then((snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const now = Date.now();
+                const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+                const keys = Object.keys(data);
+                let hasExpired = false;
+
+                keys.forEach((key) => {
+                    const msg = data[key];
+                    if (msg?.timestamp && (now - msg.timestamp > TWENTY_FOUR_HOURS)) {
+                        hasExpired = true;
+                    }
+                });
+
+                // หากพบว่าข้อความในแชตนี้เก่าเกิน 24 ชม. ให้สั่งล้างข้อมูลใน Firebase ทันที
+                if (hasExpired) {
+                    console.log(`Auto-cleaning expired chat history for match: ${matchId}`);
+                    remove(chatRef).catch(() => {});
+                }
+            }
+        }).catch(() => {});
+
+        // 2. ซับสไครบ์รับข้อความ Realtime
         let unsubscribe: Unsubscribe | null = null;
 
         try {
@@ -173,6 +201,19 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
             if (unsubscribe) unsubscribe();
         };
     }, [matchId]);
+
+    const handleClearChat = async () => {
+        if (!matchId) return;
+        if (confirm('คุณต้องการล้างข้อความแชทในห้องนี้ทั้งหมดใช่หรือไม่?')) {
+            try {
+                const chatRef = ref(db, `chats/${matchId}`);
+                await remove(chatRef);
+                setMessages([]);
+            } catch (err) {
+                console.error('Failed to clear chat:', err);
+            }
+        }
+    };
 
     const [cooldown, setCooldown] = useState(0);
 
@@ -280,6 +321,13 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
                         title={isMuted ? 'เปิดเสียงเอฟเฟกต์' : 'ปิดเสียงเอฟเฟกต์'}
                     >
                         {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+                    </button>
+                    <button
+                        onClick={handleClearChat}
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors cursor-pointer ml-1"
+                        title="ล้างข้อความแชทในห้องนี้"
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />
                     </button>
                 </div>
             </div>

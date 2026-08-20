@@ -222,7 +222,7 @@ export default function WatchClient({ slug }: { slug: string }) {
             {/* ====== Right Sidebar (Live Chat) ====== */}
             <aside className="order-2 lg:order-3 lg:sticky lg:top-6 lg:self-start h-[500px] lg:h-[calc(100vh-48px)]">
                 <LiveChat 
-                    matchId={currentMatch?.id ?? slug}
+                    matchId={currentMatch ? `${currentMatch.date ? currentMatch.date.replace(/[^a-zA-Z0-9]/g, '-') + '-' : ''}${currentMatch.slug || currentMatch.id}` : slug}
                     homeTeamName={currentMatch?.homeTeam?.name}
                     awayTeamName={currentMatch?.awayTeam?.name}
                 />
