@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest) {
+    const ip = req?.headers?.get('x-forwarded-for') || '127.0.0.1';
+    const rateCheck = checkRateLimit(ip, 10, 60000); // Max 10 pings per minute
+    if (!rateCheck.allowed) {
+        return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 });
+    }
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3008';
     const sitemapUrl = `${baseUrl}/sitemap.xml`;
 

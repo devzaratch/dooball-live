@@ -103,7 +103,7 @@ export default function TableClient() {
         setLoading(true);
         setError(false);
 
-        fetch(`https://www.thesportsdb.com/api/v1/json/3/lookuptable.php?l=${selectedLeague.id}&s=${selectedLeague.season}`)
+        fetch(`/api/table?l=${selectedLeague.id}&s=${selectedLeague.season}`)
             .then((res) => res.json())
             .then((data) => {
                 if (isMounted) {

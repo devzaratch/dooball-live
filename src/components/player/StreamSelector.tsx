@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PlayCircle, Tv, Signal } from 'lucide-react';
+import { PlayCircle, Tv, Signal, Flag } from 'lucide-react';
 
 export interface StreamLink {
     id: string;
@@ -13,9 +13,10 @@ interface StreamSelectorProps {
     streams: StreamLink[];
     onSelectStream?: (stream: StreamLink) => void;
     activeStreamId?: string;
+    onReportStream?: () => void;
 }
 
-export default function StreamSelector({ streams, onSelectStream, activeStreamId }: StreamSelectorProps) {
+export default function StreamSelector({ streams, onSelectStream, activeStreamId, onReportStream }: StreamSelectorProps) {
     const [selectedId, setSelectedId] = useState<string>(activeStreamId || streams[0]?.id);
 
     const handleSelect = (stream: StreamLink) => {
@@ -27,17 +28,30 @@ export default function StreamSelector({ streams, onSelectStream, activeStreamId
 
     return (
         <div className="bg-[#0B0F17]/90 border border-white/10 rounded-2xl p-4 backdrop-blur-xl shadow-xl space-y-3 font-sans">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                 <div className="flex items-center gap-2">
                     <Tv className="w-4 h-4 text-[#E5B842]" />
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
                         เลือกช่องสัญญาณถ่ายทอดสด
                     </span>
                 </div>
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    <Signal className="w-3 h-3 animate-pulse" />
-                    สัญญาณเสถียร HD
-                </span>
+                <div className="flex items-center gap-2">
+                    {onReportStream && (
+                        <button
+                            type="button"
+                            onClick={onReportStream}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer active:scale-95"
+                            title="แจ้งเตือนเมื่อสัญญาณภาพกระตุก หรือ ลิงก์เสีย"
+                        >
+                            <Flag className="w-3 h-3 text-rose-400" />
+                            <span>แจ้งสัญญาณเสีย</span>
+                        </button>
+                    )}
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20">
+                        <Signal className="w-3 h-3 animate-pulse" />
+                        สัญญาณเสถียร HD
+                    </span>
+                </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -61,4 +75,4 @@ export default function StreamSelector({ streams, onSelectStream, activeStreamId
             </div>
         </div>
     );
-}
+}

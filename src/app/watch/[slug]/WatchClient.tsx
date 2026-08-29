@@ -1,23 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { useState, useEffect, useCallback } from 'react';
 import { useRealtimeMatches } from '@/hooks/useRealtimeMatches';
 import MatchSidebar from '@/components/layout/MatchSidebar';
 import VideoPlayer from '@/components/player/VideoPlayer';
 import StreamSelector, { StreamLink } from '@/components/player/StreamSelector';
 import LiveChat from '@/components/LiveChat';
 import AdBanner from '@/components/ads/AdBanner';
-import MatchPrediction from '@/components/watch/MatchPrediction';
-import MatchLineups from '@/components/watch/MatchLineups';
-import MatchEventsTimeline from '@/components/watch/MatchEventsTimeline';
-import SeoMatchPreview from '@/components/watch/SeoMatchPreview';
 import SocialShareBar from '@/components/common/SocialShareBar';
 import LiveViewerBadge from '@/components/common/LiveViewerBadge';
+import ReactionPickerBar from '@/components/player/ReactionPickerBar';
+import { useLiveReactions, ReactionEvent } from '@/hooks/useLiveReactions';
+import { ref, onValue } from 'firebase/database';
+import { db } from '@/lib/firebase';
+import { getMatchRoomKey } from '@/lib/utils';
 import { Radio, Clock, ShieldAlert, Film, Sparkles } from 'lucide-react';
+
+const MatchPrediction = dynamic(() => import('@/components/watch/MatchPrediction'), { ssr: false });
+const MatchLineups = dynamic(() => import('@/components/watch/MatchLineups'), { ssr: false });
+const MatchEventsTimeline = dynamic(() => import('@/components/watch/MatchEventsTimeline'), { ssr: false });
+const SeoMatchPreview = dynamic(() => import('@/components/watch/SeoMatchPreview'), { ssr: false });
+const ReportStreamModal = dynamic(() => import('@/components/player/ReportStreamModal'), { ssr: false });
 
 export default function WatchClient({ slug }: { slug: string }) {
     const { matches = [] } = useRealtimeMatches([]) || {};
     const [activeStream, setActiveStream] = useState<StreamLink | null>(null);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
     const decodedSlug = decodeURIComponent(slug);
     const currentMatch = matches.find((m) => 
@@ -38,6 +47,24 @@ export default function WatchClient({ slug }: { slug: string }) {
         } else {
             setActiveStream(null);
         }
+    }, [currentMatch, activeStream]);
+
+    // รับการอัปเดตลิงก์สตรีมด่วนแบบ Real-time จาก Admin Operations Room
+    useEffect(() => {
+        if (!currentMatch) return;
+        const matchRoomKey = getMatchRoomKey(currentMatch);
+        const overridesRef = ref(db, `stream_overrides/${matchRoomKey}`);
+        const unsubscribe = onValue(overridesRef, (snapshot) => {
+            const overrides = snapshot.val();
+            if (overrides && activeStream && overrides[activeStream.id]?.url) {
+                const newUrl = overrides[activeStream.id].url;
+                if (newUrl && newUrl !== activeStream.url) {
+                    console.log(`Admin dynamically replaced stream URL for ${activeStream.id}`);
+                    setActiveStream((prev) => prev ? { ...prev, url: newUrl } : prev);
+                }
+            }
+        });
+        return () => unsubscribe();
     }, [currentMatch, activeStream]);
 
     const handleAutoFallback = () => {
@@ -147,6 +174,7 @@ export default function WatchClient({ slug }: { slug: string }) {
                         <VideoPlayer 
                             streamUrl={activeStream?.url} 
                             onAutoFallback={handleAutoFallback}
+                            onReportStream={() => setIsReportModalOpen(true)}
                         />
 
                         {/* Stream Selector */}
@@ -155,6 +183,7 @@ export default function WatchClient({ slug }: { slug: string }) {
                                 streams={currentMatch.streamLinks}
                                 activeStreamId={activeStream?.id}
                                 onSelectStream={(stream) => setActiveStream(stream)}
+                                onReportStream={() => setIsReportModalOpen(true)}
                             />
                         )}
 
@@ -222,11 +251,20 @@ export default function WatchClient({ slug }: { slug: string }) {
             {/* ====== Right Sidebar (Live Chat) ====== */}
             <aside className="order-2 lg:order-3 lg:sticky lg:top-6 lg:self-start h-[500px] lg:h-[calc(100vh-48px)]">
                 <LiveChat 
-                    matchId={currentMatch ? `${currentMatch.date ? currentMatch.date.replace(/[^a-zA-Z0-9]/g, '-') + '-' : ''}${currentMatch.slug || currentMatch.id}` : slug}
+                    matchId={getMatchRoomKey(currentMatch || slug)}
                     homeTeamName={currentMatch?.homeTeam?.name}
                     awayTeamName={currentMatch?.awayTeam?.name}
                 />
             </aside>
+
+            {/* Report Broken Stream Modal */}
+            <ReportStreamModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                matchId={getMatchRoomKey(currentMatch || slug)}
+                matchName={currentMatch ? `${currentMatch.homeTeam?.name || ''} vs ${currentMatch.awayTeam?.name || ''}` : 'ถ่ายทอดสดฟุตบอล'}
+                activeStream={activeStream}
+            />
 
         </div>
     );

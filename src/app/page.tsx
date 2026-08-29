@@ -40,16 +40,27 @@ export default function HomePage() {
   const [selectedLeague, setSelectedLeague] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sidebarStandings, setSidebarStandings] = useState<any[]>([]);
+  const [homeHighlights, setHomeHighlights] = useState<any[]>([]);
 
   // Live Standings Auto-Calculation Hook
   const liveSidebarStandings = useLiveStandings(sidebarStandings, matches);
 
   useEffect(() => {
-    fetch('https://www.thesportsdb.com/api/v1/json/3/lookuptable.php?l=4328&s=2024-2025')
+    fetch('/api/table?league=4328')
       .then((res) => res.json())
       .then((data) => {
         if (data && data.table && Array.isArray(data.table)) {
           setSidebarStandings(data.table.slice(0, 10));
+        }
+      })
+      .catch(() => {});
+
+    // ดึงไฮไลท์ฟุตบอลสดใหม่อัตโนมัติสำหรับ Widget หน้าแรก
+    fetch('/api/highlights')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.highlights && Array.isArray(data.highlights) && data.highlights.length > 0) {
+          setHomeHighlights(data.highlights.slice(0, 3));
         }
       })
       .catch(() => {});
@@ -538,18 +549,23 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="space-y-3">
-              {[
-                { title: 'แมนฯ ยูไนเต็ด 2-1 ลิเวอร์พูล', league: 'พรีเมียร์ลีก', duration: '10:24' },
-                { title: 'เรอัล มาดริด 3-3 แมนฯ ซิตี้', league: 'ยูฟ่า แชมเปียนส์ลีก', duration: '15:10' },
-              ].map((item, idx) => (
-                <Link key={idx} href="/highlights" className="group flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-rose-500/40 hover:bg-white/5 transition-all">
-                  <div className="w-10 h-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <Play className="w-4 h-4 text-rose-500 fill-current" />
+            <div className="space-y-2.5">
+              {(homeHighlights.length > 0 ? homeHighlights : [
+                { id: '1', title: 'บาเลนเซีย 0-1 เรอัล เบติส | ลาลีกา ไฮไลต์', league: 'ลาลีกา', date: 'วันนี้' },
+                { id: '2', title: 'ซาบาห์ 5-2 ฮาโปเอล เบียร์ เชว่า | ยูฟ่า แชมเปียนส์ ลีก', league: 'ยูฟ่า แชมเปียนส์ลีก', date: 'เมื่อวานนี้' },
+                { id: '3', title: 'ลิเวอร์พูล 7-0 แมนเชสเตอร์ ยูไนเต็ด | ไฮไลท์ พรีเมียร์ลีก', league: 'พรีเมียร์ลีก', date: 'สัปดาห์นี้' },
+              ]).map((item: any, idx: number) => (
+                <Link key={item.id || idx} href="/highlights" className="group flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-rose-500/40 hover:bg-white/5 transition-all">
+                  <div className="w-10 h-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform overflow-hidden relative">
+                    {item.thumbnail ? (
+                      <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" />
+                    ) : (
+                      <Play className="w-4 h-4 text-rose-500 fill-current" />
+                    )}
                   </div>
                   <div className="flex flex-col min-w-0 flex-1">
-                    <span className="text-xs font-bold text-slate-200 group-hover:text-white truncate">{item.title}</span>
-                    <span className="text-[10px] text-slate-500">{item.league} • {item.duration}</span>
+                    <span className="text-xs font-bold text-slate-200 group-hover:text-rose-400 truncate transition-colors">{item.title}</span>
+                    <span className="text-[10px] text-slate-500">{item.league} • {item.date || 'Full HD'}</span>
                   </div>
                 </Link>
               ))}

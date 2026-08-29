@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export interface ApiNewsArticle {
     id: string;
@@ -17,7 +18,13 @@ export interface ApiNewsArticle {
     isFeatured?: boolean;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const ip = request?.headers?.get('x-forwarded-for') || '127.0.0.1';
+    const rateCheck = checkRateLimit(ip, 60, 60000);
+    if (!rateCheck.allowed) {
+        return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 });
+    }
+
     const feeds = [
         { name: 'ข่าวสด กีฬา', url: 'https://www.khaosod.co.th/sports/feed' },
         { name: 'มติชน กีฬา', url: 'https://www.matichon.co.th/sport/feed' },

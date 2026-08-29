@@ -16,6 +16,15 @@ function getServiceAccount() {
     // 2. Fallback to local serviceAccountKey.json file if present
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('fs');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const path = require('path');
+        const keyPath = path.resolve(process.cwd(), 'serviceAccountKey.json');
+        if (fs.existsSync(keyPath)) {
+            const raw = fs.readFileSync(keyPath, 'utf-8');
+            return JSON.parse(raw);
+        }
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const localKey = require('../../serviceAccountKey.json');
         return localKey;
     } catch {

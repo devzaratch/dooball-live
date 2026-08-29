@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Film, Play, Calendar, Eye, X, Tv, Sparkles, CheckCircle2, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Film, Play, Calendar, Eye, X, Tv, Sparkles, CheckCircle2, Search, RefreshCw, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import SocialShareBar from '@/components/common/SocialShareBar';
 
@@ -13,7 +13,7 @@ const YoutubeIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
 
 export interface HighlightVideo {
     id: string;
-    videoId: string; // YouTube Video ID
+    videoId: string;
     title: string;
     league: string;
     channelName: string;
@@ -23,109 +23,103 @@ export interface HighlightVideo {
     duration: string;
 }
 
-// รายการไฮไลท์ฟุตบอลจากช่องทางการ (beIN SPORTS Thailand, TrueVisions & Official Clubs)
-const OFFICIAL_HIGHLIGHTS: HighlightVideo[] = [
+// Fallback เริ่มต้นกรณีโหลดช้าหรือออฟไลน์
+const FALLBACK_HIGHLIGHTS: HighlightVideo[] = [
     {
         id: 'hl-1',
-        videoId: 'b3Ge5NUbI2o',
-        title: 'อาร์เซน่อล 3-0 เรอัล มาดริด | ไฮไลต์ ยูฟ่า แชมเปี้ยนส์ ลีก',
-        league: 'ยูฟ่า แชมเปียนส์ลีก',
+        videoId: 'ud6YGDqqak4',
+        title: 'บาเลนเซีย 0-1 เรอัล เบติส | ลาลีกา ไฮไลต์ LaLiga',
+        league: 'ลาลีกา',
         channelName: 'beIN SPORTS Thailand',
-        thumbnail: 'https://i.ytimg.com/vi/b3Ge5NUbI2o/hqdefault.jpg',
-        date: 'เมื่อวานนี้',
-        views: '2.5M',
-        duration: '05:45',
+        thumbnail: 'https://i.ytimg.com/vi/ud6YGDqqak4/hqdefault.jpg',
+        date: 'วันนี้',
+        views: 'Official HD',
+        duration: 'Full HD',
     },
     {
         id: 'hl-2',
-        videoId: 'iBuTEywEQ6U',
-        title: 'ลิเวอร์พูล 7-0 แมนเชสเตอร์ ยูไนเต็ด | ไฮไลท์ พรีเมียร์ลีก',
-        league: 'พรีเมียร์ลีก',
-        channelName: 'Liverpool FC',
-        thumbnail: 'https://i.ytimg.com/vi/iBuTEywEQ6U/hqdefault.jpg',
-        date: '2 วันที่แล้ว',
-        views: '20.7M',
-        duration: '02:14',
+        videoId: 'ZmjMPYCBuvA',
+        title: 'ซาบาห์ 5-2 ฮาโปเอล เบียร์ เชว่า | ยูฟ่า แชมเปียนส์ ลีก ไฮไลต์',
+        league: 'ยูฟ่า แชมเปียนส์ลีก',
+        channelName: 'beIN SPORTS Thailand',
+        thumbnail: 'https://i.ytimg.com/vi/ZmjMPYCBuvA/hqdefault.jpg',
+        date: 'เมื่อวานนี้',
+        views: 'Official HD',
+        duration: 'Full HD',
     },
     {
         id: 'hl-3',
-        videoId: 'uAh8PUteoaE',
-        title: 'เรอัล มาดริด 3-2 แอตเลติโก มาดริด | ลาลีกา ไฮไลต์',
-        league: 'ลาลีกา',
-        channelName: 'beIN SPORTS Thailand',
-        thumbnail: 'https://i.ytimg.com/vi/uAh8PUteoaE/hqdefault.jpg',
-        date: '3 วันที่แล้ว',
-        views: '664K',
-        duration: '10:05',
+        videoId: 'iBuTEywEQ6U',
+        title: 'ลิเวอร์พูล 7-0 แมนเชสเตอร์ ยูไนเต็ด | ไฮไลท์ พรีเมียร์ลีก',
+        league: 'พรีเมียร์ลีก',
+        channelName: 'TrueVisions Official',
+        thumbnail: 'https://i.ytimg.com/vi/iBuTEywEQ6U/hqdefault.jpg',
+        date: 'สัปดาห์นี้',
+        views: 'Official HD',
+        duration: 'Full HD',
     },
     {
         id: 'hl-4',
-        videoId: '-8wdpqqXBiE',
-        title: 'แมนเชสเตอร์ ยูไนเต็ด 2-2 ลิเวอร์พูล | ไฮไลต์ พรีเมียร์ลีก',
-        league: 'พรีเมียร์ลีก',
-        channelName: 'Manchester United',
-        thumbnail: 'https://i.ytimg.com/vi/-8wdpqqXBiE/hqdefault.jpg',
-        date: '4 วันที่แล้ว',
-        views: '4.5M',
-        duration: '02:26',
-    },
-    {
-        id: 'hl-5',
-        videoId: 'c-PCeIYLt7U',
-        title: 'เรอัล มาดริด 1-2 บาเยิร์น มิวนิค | ไฮไลต์ ยูฟ่า แชมเปี้ยนส์ ลีก',
-        league: 'ยูฟ่า แชมเปียนส์ลีก',
-        channelName: 'beIN SPORTS Thailand',
-        thumbnail: 'https://i.ytimg.com/vi/c-PCeIYLt7U/hqdefault.jpg',
-        date: '5 วันที่แล้ว',
-        views: '192K',
-        duration: '07:38',
-    },
-    {
-        id: 'hl-6',
-        videoId: 'bLsIEMYC8VY',
-        title: 'โบรุสเซีย ดอร์ทมุนด์ 2-3 บาเยิร์น มิวนิค | บุนเดสลีกา ไฮไลต์',
-        league: 'บุนเดสลีกา',
-        channelName: 'beIN SPORTS Thailand',
-        thumbnail: 'https://i.ytimg.com/vi/bLsIEMYC8VY/hqdefault.jpg',
-        date: '6 วันที่แล้ว',
-        views: '45K',
-        duration: '06:04',
-    },
-    {
-        id: 'hl-7',
-        videoId: 'SiteuiWL7JM',
-        title: 'เรอัล มายอร์ก้า 2-1 เรอัล มาดริด | ลาลีกา ไฮไลต์',
-        league: 'ลาลีกา',
-        channelName: 'beIN SPORTS Thailand',
-        thumbnail: 'https://i.ytimg.com/vi/SiteuiWL7JM/hqdefault.jpg',
-        date: '1 สัปดาห์ที่แล้ว',
-        views: '38K',
-        duration: '08:10',
-    },
-    {
-        id: 'hl-8',
         videoId: 'WUbBWKU0bCc',
         title: 'ทีมชาติไทย 2-1 มาเลเซีย | ไฮไลท์ฟุตบอลชิงแชมป์อาเซียน',
-        league: 'พรีเมียร์ลีก',
+        league: 'ทีมชาติไทย / บอลไทย',
         channelName: 'ช้างศึก - ฟุตบอลทีมชาติไทย',
         thumbnail: 'https://i.ytimg.com/vi/WUbBWKU0bCc/hqdefault.jpg',
-        date: '1 สัปดาห์ที่แล้ว',
-        views: '1.0M',
-        duration: '08:23',
+        date: 'สัปดาห์นี้',
+        views: 'Official HD',
+        duration: 'Full HD',
     },
 ];
 
-const LEAGUE_FILTERS = ['ทั้งหมด', 'พรีเมียร์ลีก', 'ยูฟ่า แชมเปียนส์ลีก', 'ลาลีกา', 'เซเรียอา', 'บุนเดสลีกา'];
-
 export default function HighlightsClient() {
     const { t } = useLanguage();
+    const [highlights, setHighlights] = useState<HighlightVideo[]>(FALLBACK_HIGHLIGHTS);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [selectedLeague, setSelectedLeague] = useState('ทั้งหมด');
+    const [searchQuery, setSearchQuery] = useState('');
     const [activeVideo, setActiveVideo] = useState<HighlightVideo | null>(null);
 
-    const filteredHighlights = OFFICIAL_HIGHLIGHTS.filter((item) => {
-        if (selectedLeague === 'ทั้งหมด') return true;
-        return item.league === selectedLeague;
-    });
+    // ดึงคลิปไฮไลท์สดใหม่จาก API อัตโนมัติ
+    const fetchLatestHighlights = async (showLoader = false) => {
+        if (showLoader) setIsRefreshing(true);
+        try {
+            const res = await fetch('/api/highlights');
+            const data = await res.json();
+            if (data?.highlights && Array.isArray(data.highlights) && data.highlights.length > 0) {
+                setHighlights(data.highlights);
+            }
+        } catch (err) {
+            console.warn('Failed to load dynamic highlights, using fallback:', err);
+        } finally {
+            setIsLoading(false);
+            if (showLoader) setIsRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchLatestHighlights();
+    }, []);
+
+    // คำนวณแท็บลีกที่มีคลิปจริง
+    const leagueFilters = useMemo(() => {
+        const setOfLeagues = new Set<string>();
+        highlights.forEach((h) => {
+            if (h.league) setOfLeagues.add(h.league);
+        });
+        return ['ทั้งหมด', ...Array.from(setOfLeagues)];
+    }, [highlights]);
+
+    // กรองคลิปตามลีก และคำค้นหา
+    const filteredHighlights = useMemo(() => {
+        return highlights.filter((item) => {
+            const matchesLeague = selectedLeague === 'ทั้งหมด' || item.league === selectedLeague;
+            const matchesSearch = !searchQuery.trim() || 
+                item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                item.channelName.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchesLeague && matchesSearch;
+        });
+    }, [highlights, selectedLeague, searchQuery]);
 
     return (
         <div className="flex flex-col gap-6 md:gap-8 p-3 sm:p-4 md:p-6 pb-20 md:pb-6 max-w-[1600px] mx-auto min-h-screen font-sans animate-[fadeIn_0.5s_ease-out]">
@@ -136,7 +130,7 @@ export default function HighlightsClient() {
                 <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-rose-500/10 blur-[80px] pointer-events-none rounded-full" />
                 <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-rose-500/50 to-transparent" />
                 
-                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                     <div className="flex items-center gap-4 sm:gap-5">
                         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-700 p-[1px] shadow-[0_0_20px_rgba(244,63,94,0.3)] shrink-0">
                             <div className="w-full h-full bg-black/80 backdrop-blur-xl rounded-2xl flex items-center justify-center">
@@ -144,28 +138,47 @@ export default function HighlightsClient() {
                             </div>
                         </div>
                         <div>
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
                                 <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-wide">
                                     {t('highlights_hub_title')}
                                 </h1>
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[11px] font-bold">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    อัปเดตอัตโนมัติ Real-Time
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold">
                                     <YoutubeIcon className="w-3.5 h-3.5" />
                                     YouTube Official
                                 </span>
                             </div>
                             <p className="text-xs sm:text-sm text-slate-400">
-                                ดึงคลิปไฮไลท์จากช่องทางการ (beIN SPORTS Thailand & TrueVisions Official) คมชัดระดับ HD
+                                ดึงคลิปไฮไลท์สดใหม่จาก beIN SPORTS Thailand, TrueVisions Official และช่องสโมสรทางการ คมชัดระดับ Full HD
                             </p>
                         </div>
                     </div>
-                    
+
+                    <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                        <button
+                            onClick={() => fetchLatestHighlights(true)}
+                            disabled={isRefreshing}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer disabled:opacity-50"
+                            title="รีเฟรชดึงคลิปล่าสุด"
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-rose-400' : ''}`} />
+                            <span>รีเฟรชคลิปใหม่</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Filters and Search Bar */}
+                <div className="relative z-10 mt-6 pt-5 border-t border-white/10 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
                     {/* League Filter Buttons */}
-                    <div className="flex flex-wrap justify-center gap-1.5 p-1.5 bg-black/40 rounded-2xl border border-white/10 backdrop-blur-md">
-                        {LEAGUE_FILTERS.map((league) => (
+                    <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-2xl border border-white/10 overflow-x-auto custom-scrollbar">
+                        {leagueFilters.map((league) => (
                             <button
                                 key={league}
                                 onClick={() => setSelectedLeague(league)}
-                                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                                     selectedLeague === league
                                         ? 'bg-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.3)]'
                                         : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -175,74 +188,97 @@ export default function HighlightsClient() {
                             </button>
                         ))}
                     </div>
+
+                    {/* Search Input */}
+                    <div className="relative w-full lg:w-72">
+                        <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="ค้นหาทีม, คู่แข่งขัน..."
+                            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900/90 border border-white/10 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-rose-500/50 transition-all"
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* Grid Video Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredHighlights.map((highlight) => (
-                    <div 
-                        key={highlight.id} 
-                        onClick={() => setActiveVideo(highlight)}
-                        className="group flex flex-col bg-[#0B0F17]/80 border border-white/10 rounded-2xl overflow-hidden hover:border-rose-500/60 hover:shadow-[0_0_25px_rgba(244,63,94,0.2)] transition-all duration-300 cursor-pointer backdrop-blur-xl"
-                    >
-                        {/* Thumbnail Container */}
-                        <div className="relative aspect-video overflow-hidden bg-slate-950">
-                            <img 
-                                src={highlight.thumbnail} 
-                                alt={highlight.title} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
-                                onError={(e) => {
-                                    // Fallback image if YouTube thumbnail maxres is unavailable
-                                    (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${highlight.videoId}/hqdefault.jpg`;
-                                }}
-                            />
-                            
-                            {/* Play Icon Overlay */}
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-colors">
-                                <div className="w-13 h-13 rounded-full bg-rose-600/90 text-white flex items-center justify-center scale-90 group-hover:scale-110 transition-all duration-300 shadow-[0_0_20px_rgba(244,63,94,0.6)]">
-                                    <Play className="w-6 h-6 ml-0.5 fill-current" />
+            {isLoading ? (
+                <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-slate-400">
+                    <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
+                    <p className="text-xs">กำลังดึงคลิปไฮไลท์สดใหม่จากช่อง Official...</p>
+                </div>
+            ) : filteredHighlights.length === 0 ? (
+                <div className="py-20 rounded-3xl bg-[#0B0F17]/60 border border-white/10 text-center flex flex-col items-center justify-center gap-3">
+                    <Film className="w-10 h-10 text-slate-600" />
+                    <h3 className="text-sm font-bold text-slate-300">ไม่พบคลิปไฮไลท์ที่ค้นหา</h3>
+                    <p className="text-xs text-slate-500">ลองเปลี่ยนคำค้นหา หรือเลือกแท็บ &ldquo;ทั้งหมด&rdquo;</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                    {filteredHighlights.map((highlight) => (
+                        <div 
+                            key={highlight.id} 
+                            onClick={() => setActiveVideo(highlight)}
+                            className="group flex flex-col bg-[#0B0F17]/80 border border-white/10 rounded-2xl overflow-hidden hover:border-rose-500/60 hover:shadow-[0_0_25px_rgba(244,63,94,0.2)] transition-all duration-300 cursor-pointer backdrop-blur-xl"
+                        >
+                            {/* Thumbnail Container */}
+                            <div className="relative aspect-video overflow-hidden bg-slate-950">
+                                <img 
+                                    src={highlight.thumbnail} 
+                                    alt={highlight.title} 
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${highlight.videoId}/hqdefault.jpg`;
+                                    }}
+                                />
+                                
+                                {/* Play Icon Overlay */}
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-colors">
+                                    <div className="w-12 h-12 rounded-full bg-rose-600/90 text-white flex items-center justify-center scale-90 group-hover:scale-110 transition-all duration-300 shadow-[0_0_20px_rgba(244,63,94,0.6)]">
+                                        <Play className="w-5 h-5 ml-0.5 fill-current" />
+                                    </div>
+                                </div>
+                                
+                                {/* Duration Badge */}
+                                <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/80 text-white text-[10px] font-mono font-bold backdrop-blur-md border border-white/10">
+                                    {highlight.duration || 'Full HD'}
+                                </div>
+                                
+                                {/* League Badge */}
+                                <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-lg bg-rose-500/90 text-white text-[10px] font-bold shadow-md">
+                                    {highlight.league}
                                 </div>
                             </div>
                             
-                            {/* Duration Badge */}
-                            <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/80 text-white text-[10px] font-mono font-bold backdrop-blur-md border border-white/10">
-                                {highlight.duration}
-                            </div>
-                            
-                            {/* League Badge */}
-                            <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-rose-500/90 text-white text-[10px] font-bold shadow-md">
-                                {highlight.league}
-                            </div>
-                        </div>
-                        
-                        {/* Video Info */}
-                        <div className="p-4 flex flex-col gap-3 flex-1">
-                            <h3 className="font-bold text-slate-100 text-sm line-clamp-2 group-hover:text-rose-400 transition-colors leading-snug">
-                                {highlight.title}
-                            </h3>
+                            {/* Video Info */}
+                            <div className="p-4 flex flex-col gap-2.5 flex-1">
+                                <h3 className="font-bold text-slate-100 text-xs sm:text-sm line-clamp-2 group-hover:text-rose-400 transition-colors leading-snug">
+                                    {highlight.title}
+                                </h3>
 
-                            {/* Channel Badge */}
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
-                                <span>{highlight.channelName}</span>
-                            </div>
-                            
-                            {/* Footer Stats */}
-                            <div className="flex items-center justify-between text-xs text-slate-400 mt-auto pt-2.5 border-t border-white/5">
-                                <div className="flex items-center gap-1.5">
-                                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                                    <span>{highlight.date}</span>
+                                {/* Channel Badge */}
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                                    <span>{highlight.channelName}</span>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    <Eye className="w-3.5 h-3.5 text-slate-500" />
-                                    <span>{highlight.views} รับชม</span>
+                                
+                                {/* Footer Stats */}
+                                <div className="flex items-center justify-between text-[11px] text-slate-400 mt-auto pt-2.5 border-t border-white/5">
+                                    <div className="flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>{highlight.date}</span>
+                                    </div>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 font-mono">
+                                        {highlight.views || 'Official HD'}
+                                    </span>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
 
             {/* ================= YOUTUBE EMBED MODAL POPUP ================= */}
             {activeVideo && (
@@ -298,7 +334,7 @@ export default function HighlightsClient() {
                             />
                             <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                                 <span>อัปเดตเมื่อ: {activeVideo.date}</span>
-                                <span className="text-slate-500">ยอดชม {activeVideo.views} ครั้ง</span>
+                                <span className="text-slate-500 font-mono">ระบบสตรีมมิ่ง HD Official</span>
                             </div>
                         </div>
                     </div>

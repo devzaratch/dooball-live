@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest) {
+    const ip = req?.headers?.get('x-forwarded-for') || '127.0.0.1';
+    const rateCheck = checkRateLimit(ip, 60, 60000);
+    if (!rateCheck.allowed) {
+        return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 });
+    }
+
     const { searchParams } = new URL(req.url);
     const home = searchParams.get('home') || 'ทีมเหย้า';
     const away = searchParams.get('away') || 'ทีมเยือน';
