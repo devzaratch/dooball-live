@@ -14,19 +14,27 @@ import ReactionPickerBar from '@/components/player/ReactionPickerBar';
 import { useLiveReactions, ReactionEvent } from '@/hooks/useLiveReactions';
 import { ref, onValue } from 'firebase/database';
 import { db } from '@/lib/firebase';
-import { getMatchRoomKey } from '@/lib/utils';
-import { Radio, Clock, ShieldAlert, Film, Sparkles } from 'lucide-react';
+import { getMatchRoomKey, cn } from '@/lib/utils';
+import { Radio, Clock, ShieldAlert, Film, Sparkles, MessageSquare, BarChart2, Tv, Trophy } from 'lucide-react';
 
+const MatchStats = dynamic(() => import('@/components/watch/MatchStats'), { ssr: false });
 const MatchPrediction = dynamic(() => import('@/components/watch/MatchPrediction'), { ssr: false });
 const MatchLineups = dynamic(() => import('@/components/watch/MatchLineups'), { ssr: false });
 const MatchEventsTimeline = dynamic(() => import('@/components/watch/MatchEventsTimeline'), { ssr: false });
 const SeoMatchPreview = dynamic(() => import('@/components/watch/SeoMatchPreview'), { ssr: false });
 const ReportStreamModal = dynamic(() => import('@/components/player/ReportStreamModal'), { ssr: false });
+const MatchCardGenerator = dynamic(() => import('@/components/common/MatchCardGenerator'), { ssr: false });
+const PlayerOfMatchModal = dynamic(() => import('@/components/watch/PlayerOfMatchModal'), { ssr: false });
+
+type MobileTab = 'CHAT' | 'STATS' | 'MATCHES' | 'INFO';
 
 export default function WatchClient({ slug }: { slug: string }) {
     const { matches = [] } = useRealtimeMatches([]) || {};
     const [activeStream, setActiveStream] = useState<StreamLink | null>(null);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+    const [isPotmModalOpen, setIsPotmModalOpen] = useState(false);
+    const [mobileTab, setMobileTab] = useState<MobileTab>('CHAT');
 
     const decodedSlug = decodeURIComponent(slug);
     const currentMatch = matches.find((m) => 
@@ -78,22 +86,22 @@ export default function WatchClient({ slug }: { slug: string }) {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_340px] gap-5 p-3 md:p-6 pb-20 md:pb-6 max-w-[1600px] mx-auto min-h-screen font-sans">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_340px] gap-5 p-3 md:p-6 pb-24 md:pb-6 max-w-[1600px] mx-auto min-h-screen font-sans">
 
-            {/* ====== Left Sidebar (Match List) ====== */}
-            <div className="order-3 lg:order-1 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-48px)] overflow-hidden">
+            {/* ====== Left Sidebar (Desktop Match List) ====== */}
+            <div className="hidden lg:block lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-48px)] overflow-hidden">
                 <MatchSidebar
                     matches={matches}
                     activeSlug={slug}
                 />
             </div>
 
-            {/* ====== Center Content (Scoreboard + Video + Stream Selector) ====== */}
-            <div className="order-1 lg:order-2 flex flex-col gap-5 min-w-0">
+            {/* ====== Center Main Content (Scoreboard + Video + Stream Selector) ====== */}
+            <div className="flex flex-col gap-5 min-w-0">
                 {currentMatch ? (
                     <>
                         {/* Hero Scoreboard */}
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-[#0B0F17] border border-white/10 p-5 shadow-2xl backdrop-blur-xl">
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-[#0B0F17] border border-white/10 p-4 sm:p-5 shadow-2xl backdrop-blur-xl">
                             <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-32 bg-[#E5B842]/10 blur-[60px] pointer-events-none rounded-full" />
                             {isLive && (
                                 <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-rose-500 to-transparent animate-pulse" />
@@ -194,50 +202,183 @@ export default function WatchClient({ slug }: { slug: string }) {
                             awayTeamName={currentMatch.awayTeam?.name}
                         />
 
-                        {/* 1-Click Social Share Bar (LINE / Facebook / Messenger / X) */}
-                        <SocialShareBar 
-                            title={`ถ่ายทอดสดบอล ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name} (${currentMatch.league?.name || 'DoBallLaos'})`}
-                        />
-
-                        {/* Match Highlight Video Replay (ไฮไลท์ฟุตบอลย้อนหลัง HD) */}
-                        <div className="flex flex-col gap-3 p-5 rounded-3xl bg-[#0B0F17]/90 border border-white/10 backdrop-blur-xl shadow-xl font-sans">
-                            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-500">
-                                        <Film className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-extrabold text-sm md:text-base text-slate-100 flex items-center gap-2">
-                                            ไฮไลท์ฟุตบอลย้อนหลัง HD (Match Highlights & Goal Replay)
-                                            <Sparkles className="w-4 h-4 text-amber-400" />
-                                        </h3>
-                                        <p className="text-[11px] text-slate-400">ชมประตูสำคัญและการแข่งขันย้อนหลังแบบเต็มอิ่ม</p>
-                                    </div>
-                                </div>
-                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                                    Full HD 1080p
-                                </span>
-                            </div>
-
-                            <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner">
-                                <iframe
-                                    src={`https://www.youtube.com/embed/${(currentMatch as any).highlightVideoId || 'b3Ge5NUbI2o'}?rel=0`}
-                                    title={`ไฮไลท์ ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name}`}
-                                    className="w-full h-full border-0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                />
+                        {/* 1-Click Social Share Bar & Viral Match Story Card Trigger */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl bg-[#0B0F17]/90 border border-white/10 backdrop-blur-xl">
+                            <SocialShareBar 
+                                title={`ถ่ายทอดสดบอล ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name} (${currentMatch.league?.name || 'DoBallLaos'})`}
+                                className="flex-1"
+                            />
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setIsCardModalOpen(true)}
+                                    className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                                    title="สร้างรูปภาพการ์ดผลบอลสำหรับแชร์"
+                                >
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                    <span>การ์ดผลบอล Story</span>
+                                </button>
+                                <button
+                                    onClick={() => setIsPotmModalOpen(true)}
+                                    className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                                    title="โหวตนักเตะยอดเยี่ยมประจำแมตช์"
+                                >
+                                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                                    <span>โหวต Man of Match</span>
+                                </button>
                             </div>
                         </div>
 
-                        {/* Starting 11 Lineups & Tactical Pitch View */}
-                        <MatchLineups match={currentMatch} />
+                        {/* ====== MOBILE TAB SWITCHER BAR (Visible on Mobile < 1024px) ====== */}
+                        <div className="lg:hidden flex items-center gap-1.5 p-1.5 bg-[#0B0F17]/95 border border-white/10 rounded-2xl backdrop-blur-xl shadow-xl sticky top-2 z-30">
+                            <button
+                                onClick={() => setMobileTab('CHAT')}
+                                className={cn(
+                                    "flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                    mobileTab === 'CHAT' ? "bg-[#E5B842] text-black shadow-md font-black" : "text-slate-400 hover:text-white"
+                                )}
+                            >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>แชทสด</span>
+                            </button>
+                            <button
+                                onClick={() => setMobileTab('STATS')}
+                                className={cn(
+                                    "flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                    mobileTab === 'STATS' ? "bg-[#E5B842] text-black shadow-md font-black" : "text-slate-400 hover:text-white"
+                                )}
+                            >
+                                <BarChart2 className="w-3.5 h-3.5" />
+                                <span>สถิติ/11ตัวจริง</span>
+                            </button>
+                            <button
+                                onClick={() => setMobileTab('MATCHES')}
+                                className={cn(
+                                    "flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                    mobileTab === 'MATCHES' ? "bg-[#E5B842] text-black shadow-md font-black" : "text-slate-400 hover:text-white"
+                                )}
+                            >
+                                <Tv className="w-3.5 h-3.5" />
+                                <span>คู่อื่น</span>
+                            </button>
+                            <button
+                                onClick={() => setMobileTab('INFO')}
+                                className={cn(
+                                    "flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                                    mobileTab === 'INFO' ? "bg-[#E5B842] text-black shadow-md font-black" : "text-slate-400 hover:text-white"
+                                )}
+                            >
+                                <Trophy className="w-3.5 h-3.5" />
+                                <span>ทายผล</span>
+                            </button>
+                        </div>
 
-                        {/* Match Prediction Poll */}
-                        <MatchPrediction match={currentMatch} />
+                        {/* ====== MOBILE TAB CONTENT RENDERING (Only active tab visible on mobile) ====== */}
+                        <div className="lg:hidden flex flex-col gap-5">
+                            {mobileTab === 'CHAT' && (
+                                <div className="h-[480px] rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+                                    <LiveChat 
+                                        matchId={getMatchRoomKey(currentMatch || slug)}
+                                        homeTeamName={currentMatch?.homeTeam?.name}
+                                        awayTeamName={currentMatch?.awayTeam?.name}
+                                    />
+                                </div>
+                            )}
 
-                        {/* SEO Match Preview & H2H Statistical Box */}
-                        <SeoMatchPreview match={currentMatch} />
+                            {mobileTab === 'STATS' && (
+                                <div className="flex flex-col gap-5">
+                                    <MatchStats match={currentMatch} />
+                                    <MatchLineups match={currentMatch} />
+                                </div>
+                            )}
+
+                            {mobileTab === 'MATCHES' && (
+                                <div>
+                                    <MatchSidebar
+                                        matches={matches}
+                                        activeSlug={slug}
+                                    />
+                                </div>
+                            )}
+
+                            {mobileTab === 'INFO' && (
+                                <div className="flex flex-col gap-5">
+                                    <MatchPrediction match={currentMatch} />
+                                    
+                                    {/* Match Highlight Video Replay */}
+                                    <div className="flex flex-col gap-3 p-5 rounded-3xl bg-[#0B0F17]/90 border border-white/10 backdrop-blur-xl shadow-xl font-sans">
+                                        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-500">
+                                                    <Film className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-extrabold text-sm text-slate-100 flex items-center gap-2">
+                                                        ไฮไลท์ฟุตบอล HD
+                                                    </h3>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10">
+                                            <iframe
+                                                src={`https://www.youtube.com/embed/${(currentMatch as any).highlightVideoId || 'b3Ge5NUbI2o'}?rel=0`}
+                                                title={`ไฮไลท์ ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name}`}
+                                                className="w-full h-full border-0"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <SeoMatchPreview match={currentMatch} />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ====== DESKTOP COMPONENT STACK (Always visible on Desktop >= 1024px) ====== */}
+                        <div className="hidden lg:flex flex-col gap-5">
+                            {/* Live Match Stats & H2H */}
+                            <MatchStats match={currentMatch} />
+
+                            {/* Starting 11 Lineups & Tactical Pitch View */}
+                            <MatchLineups match={currentMatch} />
+
+                            {/* Match Prediction Poll */}
+                            <MatchPrediction match={currentMatch} />
+
+                            {/* Match Highlight Video Replay */}
+                            <div className="flex flex-col gap-3 p-5 rounded-3xl bg-[#0B0F17]/90 border border-white/10 backdrop-blur-xl shadow-xl font-sans">
+                                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-500">
+                                            <Film className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-extrabold text-sm md:text-base text-slate-100 flex items-center gap-2">
+                                                ไฮไลท์ฟุตบอลย้อนหลัง HD (Match Highlights & Goal Replay)
+                                                <Sparkles className="w-4 h-4 text-amber-400" />
+                                            </h3>
+                                            <p className="text-[11px] text-slate-400">ชมประตูสำคัญและการแข่งขันย้อนหลังแบบเต็มอิ่ม</p>
+                                        </div>
+                                    </div>
+                                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                                        Full HD 1080p
+                                    </span>
+                                </div>
+
+                                <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner">
+                                    <iframe
+                                        src={`https://www.youtube.com/embed/${(currentMatch as any).highlightVideoId || 'b3Ge5NUbI2o'}?rel=0`}
+                                        title={`ไฮไลท์ ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name}`}
+                                        className="w-full h-full border-0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
+                                </div>
+                            </div>
+
+                            {/* SEO Match Preview & H2H Statistical Box */}
+                            <SeoMatchPreview match={currentMatch} />
+                        </div>
                     </>
                 ) : (
                     <div className="flex flex-col items-center justify-center py-24 bg-[#0B0F17]/60 border border-white/10 rounded-2xl backdrop-blur-xl text-center px-4">
@@ -248,8 +389,8 @@ export default function WatchClient({ slug }: { slug: string }) {
                 )}
             </div>
 
-            {/* ====== Right Sidebar (Live Chat) ====== */}
-            <aside className="order-2 lg:order-3 lg:sticky lg:top-6 lg:self-start h-[500px] lg:h-[calc(100vh-48px)]">
+            {/* ====== Right Sidebar (Desktop Live Chat) ====== */}
+            <aside className="hidden lg:block lg:sticky lg:top-6 lg:self-start h-[calc(100vh-48px)]">
                 <LiveChat 
                     matchId={getMatchRoomKey(currentMatch || slug)}
                     homeTeamName={currentMatch?.homeTeam?.name}
@@ -265,6 +406,24 @@ export default function WatchClient({ slug }: { slug: string }) {
                 matchName={currentMatch ? `${currentMatch.homeTeam?.name || ''} vs ${currentMatch.awayTeam?.name || ''}` : 'ถ่ายทอดสดฟุตบอล'}
                 activeStream={activeStream}
             />
+
+            {/* Match Story Card Generator Modal */}
+            {currentMatch && (
+                <MatchCardGenerator
+                    match={currentMatch}
+                    isOpen={isCardModalOpen}
+                    onClose={() => setIsCardModalOpen(false)}
+                />
+            )}
+
+            {/* Player of the Match Voting Modal */}
+            {currentMatch && (
+                <PlayerOfMatchModal
+                    match={currentMatch}
+                    isOpen={isPotmModalOpen}
+                    onClose={() => setIsPotmModalOpen(false)}
+                />
+            )}
 
         </div>
     );

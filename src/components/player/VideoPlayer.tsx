@@ -2,8 +2,13 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
-import { AlertCircle, Loader2, RefreshCw, Tv, PictureInPicture, Flag, Lock, Unlock, RotateCcw, RotateCw } from 'lucide-react';
+import { 
+    AlertCircle, Loader2, RefreshCw, Tv, PictureInPicture, Flag, 
+    Lock, Unlock, RotateCcw, RotateCw, Maximize, Minimize, X, 
+    ChevronUp, Sparkles, Volume2, VolumeX, Clapperboard
+} from 'lucide-react';
 import LiveViewerBadge from '@/components/common/LiveViewerBadge';
+import { cn } from '@/lib/utils';
 
 interface VideoPlayerProps {
     streamUrl?: string;
@@ -22,6 +27,9 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     const [isPipSupported, setIsPipSupported] = useState(false);
     const [isPipActive, setIsPipActive] = useState(false);
     const [isScreenLocked, setIsScreenLocked] = useState(false);
+    const [isTheaterMode, setIsTheaterMode] = useState(false);
+    const [isScrolledOffScreen, setIsScrolledOffScreen] = useState(false);
+    const [isMiniPlayerDismissed, setIsMiniPlayerDismissed] = useState(false);
     const [seekFeedback, setSeekFeedback] = useState<{ direction: 'left' | 'right'; seconds: number } | null>(null);
     const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
     const seekTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -41,9 +49,7 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
                 if ('wakeLock' in navigator) {
                     wakeLock = await (navigator as any).wakeLock.request('screen');
                 }
-            } catch {
-                // Ignore wake lock denial
-            }
+            } catch {}
         };
 
         requestWakeLock();
@@ -62,6 +68,28 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
                 wakeLock.release().catch(() => {});
             }
         };
+    }, []);
+
+    // 3. IntersectionObserver สำหรับตรวจจับ Floating Mini Player เมื่อผู้ใช้เลื่อนลงด้านล่าง
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                // ถ้าเครื่องเล่นหลุดจากสายตาไปด้านบนมากกว่า 80%
+                if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
+                    setIsScrolledOffScreen(true);
+                } else {
+                    setIsScrolledOffScreen(false);
+                    setIsMiniPlayerDismissed(false); // รีเซ็ตการซ่อนเมื่อเลื่อนกลับมา
+                }
+            },
+            { threshold: [0, 0.2] }
+        );
+
+        observer.observe(el);
+        return () => observer.disconnect();
     }, []);
 
     const togglePip = async () => {
@@ -103,7 +131,7 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
         setReloadKey((prev) => prev + 1);
     };
 
-    // 3. Double-Tap Seek (แตะ 2 ครั้ง กรอเวลา 10 วินาที ซ้าย/ขวา)
+    // 4. Double-Tap Seek (แตะ 2 ครั้ง กรอเวลา 10 วินาที ซ้าย/ขวา)
     const handleContainerTouchOrClick = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         if (isEmbed || isScreenLocked) return;
 
@@ -145,6 +173,10 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
         seekTimerRef.current = setTimeout(() => {
             setSeekFeedback(null);
         }, 850);
+    };
+
+    const scrollToPlayer = () => {
+        containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
     useEffect(() => {
@@ -243,148 +275,222 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     }
 
     return (
-        <div
-            ref={containerRef}
-            onClick={handleContainerTouchOrClick}
-            className="relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-white/10 shadow-2xl group select-none"
-        >
-            {/* Live Concurrent Viewer Counter Overlay */}
-            <LiveViewerBadge matchId={matchSlug || 'live-stream'} isLive={true} variant="player_overlay" />
+        <>
+            {/* ====== MAIN VIDEO PLAYER CONTAINER ====== */}
+            <div
+                ref={containerRef}
+                onClick={handleContainerTouchOrClick}
+                className={cn(
+                    "relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-white/10 shadow-2xl group select-none transition-all duration-500",
+                    isTheaterMode && "lg:-mx-8 lg:scale-[1.03] z-30 shadow-[0_0_50px_rgba(0,0,0,0.9)] border-[#E5B842]/40"
+                )}
+            >
+                {/* Live Concurrent Viewer Counter Overlay */}
+                <LiveViewerBadge matchId={matchSlug || 'live-stream'} isLive={true} variant="player_overlay" />
 
-            {/* Top Controls Overlay: Lock & PiP */}
-            <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
-                {/* Screen Lock Toggle Button */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setIsScreenLocked(!isScreenLocked);
-                    }}
-                    title={isScreenLocked ? 'ปลดล็อกการสัมผัส' : 'ล็อกหน้าจอสัมผัส'}
-                    className={`p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs ${
-                        isScreenLocked 
-                            ? 'bg-amber-500/30 text-amber-300 border-amber-500/50 shadow-[0_0_15px_rgba(229,184,66,0.3)]' 
-                            : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border-white/10 opacity-0 group-hover:opacity-100'
-                    }`}
-                >
-                    {isScreenLocked ? <Lock className="w-4 h-4 text-amber-400" /> : <Unlock className="w-4 h-4 text-slate-300" />}
-                    <span className="hidden sm:inline font-medium">{isScreenLocked ? 'ล็อกจออยู่' : 'ล็อกจอ'}</span>
-                </button>
-
-                {/* PiP Button */}
-                {!isEmbed && isPipSupported && !isScreenLocked && (
+                {/* Top Controls Overlay: Lock, Theater & PiP */}
+                <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+                    {/* Theater Mode Toggle (Desktop) */}
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            togglePip();
+                            setIsTheaterMode(!isTheaterMode);
                         }}
-                        title="Picture-in-Picture (ย่อหน้าจอ)"
-                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-white/10 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs"
+                        title={isTheaterMode ? 'ปิดโหมดโรงภาพยนตร์' : 'เปิดโหมดโรงภาพยนตร์ (Theater View)'}
+                        className={cn(
+                            "hidden lg:flex p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-95 cursor-pointer items-center gap-1.5 text-xs",
+                            isTheaterMode 
+                                ? 'bg-[#E5B842] text-black border-[#E5B842] font-black shadow-[0_0_15px_rgba(229,184,66,0.4)]' 
+                                : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border-white/10 opacity-0 group-hover:opacity-100'
+                        )}
                     >
-                        <PictureInPicture className="w-4 h-4 text-[#E5B842]" />
-                        <span className="hidden sm:inline font-medium">{isPipActive ? 'ออกจาก PiP' : 'หน้าจอลอย'}</span>
+                        <Clapperboard className="w-4 h-4" />
+                        <span>{isTheaterMode ? 'จอปกติ' : 'โหมดโรงหนัง'}</span>
                     </button>
+
+                    {/* Screen Lock Toggle Button */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsScreenLocked(!isScreenLocked);
+                        }}
+                        title={isScreenLocked ? 'ปลดล็อกการสัมผัส' : 'ล็อกหน้าจอสัมผัส'}
+                        className={`p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs ${
+                            isScreenLocked 
+                                ? 'bg-amber-500/30 text-amber-300 border-amber-500/50 shadow-[0_0_15px_rgba(229,184,66,0.3)]' 
+                                : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border-white/10 opacity-0 group-hover:opacity-100'
+                        }`}
+                    >
+                        {isScreenLocked ? <Lock className="w-4 h-4 text-amber-400" /> : <Unlock className="w-4 h-4 text-slate-300" />}
+                        <span className="hidden sm:inline font-medium">{isScreenLocked ? 'ล็อกจออยู่' : 'ล็อกจอ'}</span>
+                    </button>
+
+                    {/* PiP Button */}
+                    {!isEmbed && isPipSupported && !isScreenLocked && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                togglePip();
+                            }}
+                            title="Picture-in-Picture (ย่อหน้าจอ)"
+                            className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-white/10 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs"
+                        >
+                            <PictureInPicture className="w-4 h-4 text-[#E5B842]" />
+                            <span className="hidden sm:inline font-medium">{isPipActive ? 'ออกจาก PiP' : 'หน้าจอลอย'}</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Screen Locked Overlay Banner */}
+                {isScreenLocked && (
+                    <div className="absolute top-3 left-3 z-30 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center gap-1.5 backdrop-blur-md animate-in fade-in">
+                        <Lock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>ล็อกหน้าจออยู่ (แตะไอคอนแม่กุญแจเพื่อปลด)</span>
+                    </div>
+                )}
+
+                {/* Double-Tap Seek Ripple Overlay */}
+                {seekFeedback && (
+                    <div
+                        className={`absolute inset-y-0 z-40 flex items-center justify-center pointer-events-none transition-all duration-300 ${
+                            seekFeedback.direction === 'left' ? 'left-0 w-1/3 bg-white/10 rounded-r-full' : 'right-0 w-1/3 bg-white/10 rounded-l-full'
+                        }`}
+                    >
+                        <div className="flex flex-col items-center gap-1 bg-black/70 px-4 py-3 rounded-2xl border border-white/20 backdrop-blur-md text-white shadow-2xl animate-in zoom-in-75">
+                            {seekFeedback.direction === 'left' ? (
+                                <>
+                                    <RotateCcw className="w-6 h-6 text-amber-400 animate-spin" />
+                                    <span className="text-xs font-bold font-mono">-10 วินาที</span>
+                                </>
+                            ) : (
+                                <>
+                                    <RotateCw className="w-6 h-6 text-amber-400 animate-spin" />
+                                    <span className="text-xs font-bold font-mono">+10 วินาที</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Loading Overlay */}
+                {isLoading && !hasError && (
+                    <div className="absolute inset-0 z-20 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center gap-3 text-white transition-opacity">
+                        <Loader2 className="w-9 h-9 text-[#E5B842] animate-spin" />
+                        <span className="text-xs font-medium text-slate-300 tracking-wide">กำลังเชื่อมต่อสัญญาณถ่ายทอดสด...</span>
+                    </div>
+                )}
+
+                {/* Error Overlay */}
+                {hasError && (
+                    <div className="absolute inset-0 z-30 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-3 text-rose-400 p-4 text-center">
+                        <div className="p-3 rounded-full bg-rose-500/10 border border-rose-500/20">
+                            <AlertCircle className="w-8 h-8 text-rose-500" />
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-sm font-semibold text-slate-200">ไม่สามารถโหลดสัญญาณภาพได้</p>
+                            <p className="text-xs text-slate-400">สัญญาณอาจจะขัดข้อง หรือสลับไปใช้ช่องทางสำรองด้านล่าง</p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                            <button
+                                onClick={handleRetry}
+                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-medium rounded-xl border border-white/10 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                            >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                ลองเชื่อมต่อใหม่
+                            </button>
+                            {onReportStream && (
+                                <button
+                                    onClick={onReportStream}
+                                    className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-medium rounded-xl border border-rose-500/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                                >
+                                    <Flag className="w-3.5 h-3.5 text-rose-400" />
+                                    แจ้งลิงก์นี้เสีย
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Embed Iframe Player */}
+                {isEmbed ? (
+                    <iframe
+                        key={`embed-${cleanUrl}-${reloadKey}`}
+                        src={cleanUrl}
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        onLoad={() => setIsLoading(false)}
+                        onError={() => {
+                            setHasError(true);
+                            setIsLoading(false);
+                        }}
+                    />
+                ) : (
+                    /* HLS / Native HTML5 Video Player */
+                    <video
+                        ref={videoRef}
+                        poster={poster}
+                        controls={!isScreenLocked}
+                        playsInline
+                        className="w-full h-full object-contain"
+                        onCanPlay={() => setIsLoading(false)}
+                        onError={() => {
+                            setHasError(true);
+                            setIsLoading(false);
+                        }}
+                    />
                 )}
             </div>
 
-            {/* Screen Locked Overlay Banner */}
-            {isScreenLocked && (
-                <div className="absolute top-3 left-3 z-30 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center gap-1.5 backdrop-blur-md animate-in fade-in">
-                    <Lock className="w-3.5 h-3.5 text-amber-400" />
-                    <span>ล็อกหน้าจออยู่ (แตะไอคอนแม่กุญแจเพื่อปลด)</span>
-                </div>
-            )}
+            {/* ====== IN-SITE FLOATING MINI PLAYER (Auto pops up when scrolling down) ====== */}
+            {isScrolledOffScreen && !isMiniPlayerDismissed && !hasError && (
+                <div className="fixed bottom-20 md:bottom-6 right-4 z-[998] w-64 sm:w-80 aspect-video rounded-2xl overflow-hidden bg-slate-950 border-2 border-[#E5B842]/80 shadow-[0_0_35px_rgba(0,0,0,0.9)] backdrop-blur-2xl animate-[slideUp_0.4s_ease-out] group select-none">
+                    
+                    {/* Mini Player Overlay Controls */}
+                    <div className="absolute top-2 left-2 right-2 z-20 flex items-center justify-between pointer-events-auto">
+                        <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white font-black text-[9px] tracking-wider uppercase flex items-center gap-1 shadow-md">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                            LIVE MINI
+                        </span>
 
-            {/* Double-Tap Seek Ripple Overlay */}
-            {seekFeedback && (
-                <div
-                    className={`absolute inset-y-0 z-40 flex items-center justify-center pointer-events-none transition-all duration-300 ${
-                        seekFeedback.direction === 'left' ? 'left-0 w-1/3 bg-white/10 rounded-r-full' : 'right-0 w-1/3 bg-white/10 rounded-l-full'
-                    }`}
-                >
-                    <div className="flex flex-col items-center gap-1 bg-black/70 px-4 py-3 rounded-2xl border border-white/20 backdrop-blur-md text-white shadow-2xl animate-in zoom-in-75">
-                        {seekFeedback.direction === 'left' ? (
-                            <>
-                                <RotateCcw className="w-6 h-6 text-amber-400 animate-spin" />
-                                <span className="text-xs font-bold font-mono">-10 วินาที</span>
-                            </>
-                        ) : (
-                            <>
-                                <RotateCw className="w-6 h-6 text-amber-400 animate-spin" />
-                                <span className="text-xs font-bold font-mono">+10 วินาที</span>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Loading Overlay */}
-            {isLoading && !hasError && (
-                <div className="absolute inset-0 z-20 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center gap-3 text-white transition-opacity">
-                    <Loader2 className="w-9 h-9 text-[#E5B842] animate-spin" />
-                    <span className="text-xs font-medium text-slate-300 tracking-wide">กำลังเชื่อมต่อสัญญาณถ่ายทอดสด...</span>
-                </div>
-            )}
-
-            {/* Error Overlay */}
-            {hasError && (
-                <div className="absolute inset-0 z-30 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-3 text-rose-400 p-4 text-center">
-                    <div className="p-3 rounded-full bg-rose-500/10 border border-rose-500/20">
-                        <AlertCircle className="w-8 h-8 text-rose-500" />
-                    </div>
-                    <div className="space-y-1">
-                        <p className="text-sm font-semibold text-slate-200">ไม่สามารถโหลดสัญญาณภาพได้</p>
-                        <p className="text-xs text-slate-400">สัญญาณอาจจะขัดข้อง หรือสลับไปใช้ช่องทางสำรองด้านล่าง</p>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                        <button
-                            onClick={handleRetry}
-                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-medium rounded-xl border border-white/10 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
-                        >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            ลองเชื่อมต่อใหม่
-                        </button>
-                        {onReportStream && (
+                        <div className="flex items-center gap-1 bg-black/70 p-1 rounded-xl border border-white/20 backdrop-blur-md">
                             <button
-                                onClick={onReportStream}
-                                className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-medium rounded-xl border border-rose-500/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                                onClick={scrollToPlayer}
+                                className="p-1 rounded-lg text-slate-300 hover:text-amber-400 hover:bg-white/10 transition-colors cursor-pointer"
+                                title="เลื่อนกลับไปด้านบน (Scroll to Top)"
                             >
-                                <Flag className="w-3.5 h-3.5 text-rose-400" />
-                                แจ้งลิงก์นี้เสีย
+                                <ChevronUp className="w-3.5 h-3.5" />
                             </button>
-                        )}
+                            <button
+                                onClick={() => setIsMiniPlayerDismissed(true)}
+                                className="p-1 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-white/10 transition-colors cursor-pointer"
+                                title="ปิดหน้าจอมินิ"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
                     </div>
+
+                    {/* Mini Video Feed */}
+                    {isEmbed ? (
+                        <iframe
+                            src={cleanUrl}
+                            className="w-full h-full border-0 pointer-events-none"
+                        />
+                    ) : (
+                        <div 
+                            onClick={scrollToPlayer}
+                            className="w-full h-full flex items-center justify-center cursor-pointer bg-black/90 relative"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 z-10" />
+                            <Tv className="w-8 h-8 text-[#E5B842] animate-pulse relative z-10" />
+                            <span className="absolute bottom-2 left-2 right-2 text-center text-[10px] text-amber-300 font-bold z-10">
+                                แตะเพื่อกลับไปรับชมจอหลัก
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
-
-            {/* Embed Iframe Player */}
-            {isEmbed ? (
-                <iframe
-                    key={`embed-${cleanUrl}-${reloadKey}`}
-                    src={cleanUrl}
-                    className="w-full h-full border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    onLoad={() => setIsLoading(false)}
-                    onError={() => {
-                        setHasError(true);
-                        setIsLoading(false);
-                    }}
-                />
-            ) : (
-                /* HLS / Native HTML5 Video Player */
-                <video
-                    ref={videoRef}
-                    poster={poster}
-                    controls={!isScreenLocked}
-                    playsInline
-                    className="w-full h-full object-contain"
-                    onCanPlay={() => setIsLoading(false)}
-                    onError={() => {
-                        setHasError(true);
-                        setIsLoading(false);
-                    }}
-                />
-            )}
-        </div>
+        </>
     );
 }

@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { Match } from '@/types/football';
-import { Radio, Play, Clock, Tv } from 'lucide-react';
+import { Radio, Play, Clock, Star } from 'lucide-react';
 import MatchReminderButton from '@/components/common/MatchReminderButton';
 import LiveViewerBadge from '@/components/common/LiveViewerBadge';
 import { useLanguage } from '@/context/LanguageContext';
+import { useFavoriteTeams } from '@/hooks/useFavoriteTeams';
+import { cn } from '@/lib/utils';
 
 interface MatchCardProps {
     match: Match;
@@ -13,20 +15,41 @@ interface MatchCardProps {
 
 export default function MatchCard({ match }: MatchCardProps) {
     const { t } = useLanguage();
+    const { isMatchFavorite, toggleFavorite } = useFavoriteTeams();
     const isLive = match.status === 'LIVE';
     const matchTargetUrl = `/watch/${match.slug || match.id}`;
 
+    const isFav = isMatchFavorite(match.homeTeam?.name, match.awayTeam?.name);
+
+    const handleToggleFavorite = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Toggle home team as representative
+        if (match.homeTeam?.name) {
+            toggleFavorite(match.homeTeam.name);
+        }
+    };
+
     return (
-        <div className={`group relative flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all duration-300 backdrop-blur-xl ${
+        <div className={cn(
+            "group relative flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 rounded-2xl border transition-all duration-300 backdrop-blur-xl",
             isLive 
                 ? 'bg-gradient-to-r from-rose-500/[0.06] via-slate-900/90 to-slate-900/80 border-rose-500/40 hover:border-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.12)]' 
-                : 'bg-[#0B0F17]/80 border-white/10 hover:border-white/20 hover:bg-[#0B0F17]/95 shadow-lg'
-        }`}>
+                : 'bg-[#0B0F17]/80 border-white/10 hover:border-white/20 hover:bg-[#0B0F17]/95 shadow-lg',
+            isFav && !isLive && "border-amber-500/30 bg-amber-500/[0.02]"
+        )}>
             {/* Left/Top: Status & League */}
             <div className="flex items-center justify-between w-full sm:w-auto sm:flex-col sm:items-start gap-1 mb-2 sm:mb-0 shrink-0">
-                <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate max-w-[130px] sm:max-w-[140px]">
-                    {match.league?.name || 'ทั่วไป'}
-                </span>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate max-w-[130px] sm:max-w-[140px]">
+                        {match.league?.name || 'ทั่วไป'}
+                    </span>
+                    {isFav && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/30">
+                            ★ ทีมโปรด
+                        </span>
+                    )}
+                </div>
                 
                 {isLive ? (
                     <div className="flex items-center gap-1.5">
@@ -94,8 +117,22 @@ export default function MatchCard({ match }: MatchCardProps) {
                 </div>
             </div>
 
-            {/* Right/Bottom: Watch CTA & Reminder */}
+            {/* Right/Bottom: Favorite Button + Reminder + Watch CTA */}
             <div className="w-full sm:w-auto mt-2 sm:mt-0 flex items-center justify-end gap-2 shrink-0">
+                {/* Favorite Star Button */}
+                <button
+                    onClick={handleToggleFavorite}
+                    className={cn(
+                        "p-2 rounded-xl border transition-all cursor-pointer",
+                        isFav 
+                            ? "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.3)]" 
+                            : "bg-white/5 border-white/10 text-slate-400 hover:text-amber-400 hover:border-white/20"
+                    )}
+                    title={isFav ? 'นำออกจากทีมโปรด' : 'บันทึกเป็นทีมโปรด'}
+                >
+                    <Star className={cn("w-3.5 h-3.5", isFav && "fill-current")} />
+                </button>
+
                 <MatchReminderButton match={match} variant="icon" />
                 
                 <Link

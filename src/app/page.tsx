@@ -7,8 +7,10 @@ import SeoContentSection from '@/components/home/SeoContentSection';
 import { useRealtimeMatches } from '@/hooks/useRealtimeMatches';
 import { useLiveStandings } from '@/hooks/useLiveStandings';
 import MatchCard from '@/components/home/MatchCard';
+import { useFavoriteTeams } from '@/hooks/useFavoriteTeams';
 import { Match } from '@/types/football';
-import { Flame, Radio, Trophy, Film, Search, Sparkles, ChevronRight, Play, Clock, ShieldCheck, Calendar } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Flame, Radio, Trophy, Film, Search, Sparkles, ChevronRight, Play, Clock, ShieldCheck, Calendar, Star } from 'lucide-react';
 
 const THAI_NAMES_MAP: { [key: string]: string } = {
   'Liverpool': 'ลิเวอร์พูล',
@@ -35,12 +37,18 @@ const THAI_NAMES_MAP: { [key: string]: string } = {
 
 export default function HomePage() {
   const { matches = [], loading } = useRealtimeMatches([]) || {};
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'TODAY'>('ALL');
+  const { favorites, isMatchFavorite } = useFavoriteTeams();
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'TODAY' | 'FAVORITES'>('ALL');
   const [selectedDate, setSelectedDate] = useState<string>('ALL');
   const [selectedLeague, setSelectedLeague] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sidebarStandings, setSidebarStandings] = useState<any[]>([]);
   const [homeHighlights, setHomeHighlights] = useState<any[]>([]);
+
+  // จำนวนคู่ที่มีทีมโปรดลงแข่งขัน
+  const favoriteMatchesCount = useMemo(() => {
+    return matches.filter((m) => isMatchFavorite(m.homeTeam?.name, m.awayTeam?.name)).length;
+  }, [matches, isMatchFavorite]);
 
   // Live Standings Auto-Calculation Hook
   const liveSidebarStandings = useLiveStandings(sidebarStandings, matches);
@@ -94,11 +102,12 @@ export default function HomePage() {
   // กรองรายการแข่งขันตามเงื่อนไขต่างๆ
   const filteredMatches = useMemo(() => {
     return matches.filter((m) => {
-      // Filter สถานะ (ทั้งหมด, LIVE, ตารางวันนี้)
+      // Filter สถานะ (ทั้งหมด, LIVE, ตารางวันนี้, ทีมโปรด)
       const matchesStatus =
         statusFilter === 'ALL' ||
         (statusFilter === 'LIVE' && m.status === 'LIVE') ||
-        (statusFilter === 'TODAY' && (uniqueDates.length > 0 ? m.date === uniqueDates[0] : m.status !== 'FINISHED'));
+        (statusFilter === 'TODAY' && (uniqueDates.length > 0 ? m.date === uniqueDates[0] : m.status !== 'FINISHED')) ||
+        (statusFilter === 'FAVORITES' && isMatchFavorite(m.homeTeam?.name, m.awayTeam?.name));
 
       // Filter วันที่
       const matchesDate =
@@ -124,7 +133,7 @@ export default function HomePage() {
 
       return matchesStatus && matchesDate && matchesLeague && matchesSearch;
     });
-  }, [matches, statusFilter, selectedDate, selectedLeague, searchTerm, uniqueDates]);
+  }, [matches, statusFilter, selectedDate, selectedLeague, searchTerm, uniqueDates, isMatchFavorite]);
 
   // จัดกลุ่มแมตช์ตาม "วันที่" ➔ ตาม "ชื่อลีก" (Hierarchical Grouping)
   const groupedByDateAndLeague = useMemo(() => {
@@ -320,6 +329,17 @@ export default function HomePage() {
                 }`}
               >
                 ตารางวันนี้
+              </button>
+              <button
+                onClick={() => setStatusFilter('FAVORITES')}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  statusFilter === 'FAVORITES'
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                    : 'text-slate-400 hover:text-amber-400'
+                }`}
+              >
+                <Star className={cn("w-3.5 h-3.5", statusFilter === 'FAVORITES' && "fill-current")} />
+                ทีมโปรด ({favoriteMatchesCount})
               </button>
             </div>
 

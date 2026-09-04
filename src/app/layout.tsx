@@ -3,6 +3,7 @@ import { Noto_Sans_Thai } from 'next/font/google';
 import Navbar from '@/components/layout/Navbar';
 import AdBanner from '@/components/ads/AdBanner';
 import MatchReminderNotifier from '@/components/common/MatchReminderNotifier';
+import GoalNotifier from '@/components/common/GoalNotifier';
 import PwaInstaller from '@/components/common/PwaInstaller';
 import PushNotificationPrompt from '@/components/common/PushNotificationPrompt';
 import JsonLd from '@/components/common/JsonLd';
@@ -123,6 +124,9 @@ export default function RootLayout({
 
           {/* Global Match Reminder Notifier (ปุ่มเด้งการแจ้งเตือนบอลเตะมุมขวาล่าง) */}
           <MatchReminderNotifier />
+
+          {/* Global Goal Audio Alert & Toast Notifier (ระบบเตือนเสียงเมื่อมีประตูสด) */}
+          <GoalNotifier />
 
           {/* Global Web Push Notification Service (ระบบแจ้งเตือนบอลสดบนมือถือ) */}
           <PushNotificationPrompt />

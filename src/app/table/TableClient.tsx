@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trophy, Loader2, ShieldCheck, Activity, Flame } from 'lucide-react';
+import { Trophy, Loader2, ShieldCheck, Activity, Flame, Target } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useRealtimeMatches } from '@/hooks/useRealtimeMatches';
 import { useLiveStandings } from '@/hooks/useLiveStandings';
+import TopScorersTable from '@/components/table/TopScorersTable';
 
 interface StandingItem {
     idStanding: string;
@@ -94,6 +95,7 @@ export default function TableClient() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [displayLimit, setDisplayLimit] = useState<'TOP10' | 'ALL'>('TOP10');
+    const [viewMode, setViewMode] = useState<'STANDINGS' | 'SCORERS'>('STANDINGS');
 
     // Live Standings Auto-Calculation Hook
     const liveStandings = useLiveStandings(standings, matches);
@@ -178,14 +180,44 @@ export default function TableClient() {
                 </div>
             </div>
 
-            {/* Table Section */}
-            <div className="bg-[#0B0F17]/90 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-2xl min-h-[400px] flex flex-col">
-                {/* Display Limit Filter Bar */}
-                <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/[0.02]">
-                    <span className="text-xs font-bold text-slate-300">
-                        แสดงผล: <span className="text-[#E5B842]">{displayLimit === 'TOP10' ? '10 อันดับแรก' : `ทั้งหมด (${standings.length} ทีม)`}</span>
-                    </span>
-                    <div className="flex gap-1.5 p-1 bg-black/40 rounded-xl border border-white/5 text-xs font-bold">
+            {/* Mode Switcher: Standings vs Top Scorers */}
+            <div className="flex items-center gap-1.5 p-1.5 bg-[#0B0F17]/90 border border-white/10 rounded-2xl w-fit self-start backdrop-blur-xl shadow-lg">
+                <button
+                    onClick={() => setViewMode('STANDINGS')}
+                    className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                        viewMode === 'STANDINGS'
+                            ? 'bg-[#E5B842] text-black shadow-[0_0_20px_rgba(229,184,66,0.3)]'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <Trophy className="w-4 h-4" />
+                    <span>ตารางคะแนนลีก (Standings)</span>
+                </button>
+                <button
+                    onClick={() => setViewMode('SCORERS')}
+                    className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                        viewMode === 'SCORERS'
+                            ? 'bg-[#E5B842] text-black shadow-[0_0_20px_rgba(229,184,66,0.3)]'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <Flame className="w-4 h-4 fill-current" />
+                    <span>ดาวซัลโว & แอสซิสต์ (Top Scorers & Assists)</span>
+                </button>
+            </div>
+
+            {/* View Mode Conditional Content */}
+            {viewMode === 'SCORERS' ? (
+                <TopScorersTable leagueId={selectedLeague.id} leagueName={selectedLeague.fullName} />
+            ) : (
+                /* Table Section */
+                <div className="bg-[#0B0F17]/90 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-2xl min-h-[400px] flex flex-col">
+                    {/* Display Limit Filter Bar */}
+                    <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/[0.02]">
+                        <span className="text-xs font-bold text-slate-300">
+                            แสดงผล: <span className="text-[#E5B842]">{displayLimit === 'TOP10' ? '10 อันดับแรก' : `ทั้งหมด (${standings.length} ทีม)`}</span>
+                        </span>
+                        <div className="flex gap-1.5 p-1 bg-black/40 rounded-xl border border-white/5 text-xs font-bold">
                         <button
                             onClick={() => setDisplayLimit('TOP10')}
                             className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
@@ -352,6 +384,7 @@ export default function TableClient() {
                     </>
                 )}
             </div>
+            )}
 
         </div>
     );
