@@ -75,6 +75,7 @@ export function useRealtimeMatches(initialData: Match[] = []) {
                 startPolling(4000);
             } else {
                 startPolling(15000);
+
             }
         };
 

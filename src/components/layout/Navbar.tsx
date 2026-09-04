@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Tv, Trophy, Film, Newspaper } from 'lucide-react';
+import { Tv, Trophy, Film, Newspaper, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -25,6 +26,54 @@ const LaoFlagIcon = () => (
 export default function Navbar() {
     const pathname = usePathname();
     const { lang, setLang, t } = useLanguage();
+    const [isGoalSoundMuted, setIsGoalSoundMuted] = useState(false);
+
+    // ตรวจสอบสถานะการเปิด/ปิดเสียงจาก LocalStorage
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const saved = localStorage.getItem('dooball_goal_alert_muted');
+            if (saved !== null) {
+                setIsGoalSoundMuted(saved === 'true');
+            }
+        } catch {}
+
+        const handleSoundSync = (e: any) => {
+            if (e.detail && typeof e.detail.isMuted === 'boolean') {
+                setIsGoalSoundMuted(e.detail.isMuted);
+            }
+        };
+
+        window.addEventListener('dooball_sound_toggle', handleSoundSync);
+        return () => window.removeEventListener('dooball_sound_toggle', handleSoundSync);
+    }, []);
+
+    // สลับเปิด/ปิดเสียงเตือนประตู พร้อมปลดล็อก Web Audio Context
+    const handleToggleGoalSound = () => {
+        const next = !isGoalSoundMuted;
+        setIsGoalSoundMuted(next);
+        try {
+            localStorage.setItem('dooball_goal_alert_muted', String(next));
+            window.dispatchEvent(new CustomEvent('dooball_sound_toggle', { detail: { isMuted: next } }));
+            
+            // เล่นเสียงทดสอบสั้นๆ เมื่อเปิดเสียง เพื่อปลดล็อก AudioContext บนเบราว์เซอร์
+            if (!next && typeof window !== 'undefined') {
+                const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+                if (AudioCtx) {
+                    const ctx = new AudioCtx();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.15);
+                }
+            }
+        } catch {}
+    };
 
     const navLinks = [
         { href: '/', label: t('live_football'), icon: Tv },
@@ -74,8 +123,32 @@ export default function Navbar() {
                         })}
                     </nav>
 
-                    {/* Language Switcher Actions */}
-                    <div className="flex items-center gap-3">
+                    {/* Actions: Sound Toggle + Language Switcher */}
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        {/* Goal Sound Notifier Quick Toggle */}
+                        <button
+                            onClick={handleToggleGoalSound}
+                            className={cn(
+                                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[11px] font-bold transition-all cursor-pointer",
+                                !isGoalSoundMuted 
+                                    ? "bg-amber-500/15 border-amber-500/40 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]" 
+                                    : "bg-white/5 border-white/10 text-slate-400 hover:text-slate-200"
+                            )}
+                            title={!isGoalSoundMuted ? 'ระบบเตือนเสียงเมื่อมีประตูเปิดอยู่ (แตะเพื่อปิด)' : 'ระบบเตือนเสียงเมื่อมีประตูปิดอยู่ (แตะเพื่อเปิด)'}
+                        >
+                            {!isGoalSoundMuted ? (
+                                <>
+                                    <Volume2 className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                                    <span className="hidden sm:inline">เสียงเตือนสด</span>
+                                </>
+                            ) : (
+                                <>
+                                    <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                                    <span className="hidden sm:inline">ปิดเสียง</span>
+                                </>
+                            )}
+                        </button>
+
                         {/* TH / LA Language Switcher */}
                         <div className="flex items-center gap-1 bg-black/40 border border-white/10 p-1 rounded-full text-[11px] font-bold">
                             <button
@@ -95,7 +168,7 @@ export default function Navbar() {
                                     "px-2.5 py-1 rounded-full transition-all cursor-pointer flex items-center gap-1.5",
                                     lang === 'la' ? "bg-[#E5B842] text-black shadow-sm font-black" : "text-slate-400 hover:text-white"
                                 )}
-                                title="ປ່ຽນເປັນພາສາລາວ (LA)"
+                                title="ປ່ຽນเป็นພາສາລາວ (LA)"
                             >
                                 <LaoFlagIcon />
                                 <span>LA</span>

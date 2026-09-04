@@ -91,7 +91,7 @@ export default function GoalNotifier() {
     const isFirstRunRef = useRef(true);
     const dismissTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // 1. โหลดการตั้งค่าเปิด/ปิดเสียงจาก LocalStorage
+    // 1. โหลดการตั้งค่าเปิด/ปิดเสียงจาก LocalStorage และ Event Listener
     useEffect(() => {
         if (typeof window === 'undefined') return;
         try {
@@ -100,6 +100,15 @@ export default function GoalNotifier() {
                 setIsMuted(saved === 'true');
             }
         } catch {}
+
+        const handleSoundToggle = (e: any) => {
+            if (e.detail && typeof e.detail.isMuted === 'boolean') {
+                setIsMuted(e.detail.isMuted);
+            }
+        };
+
+        window.addEventListener('dooball_sound_toggle', handleSoundToggle);
+        return () => window.removeEventListener('dooball_sound_toggle', handleSoundToggle);
     }, []);
 
     const toggleMute = (e: React.MouseEvent) => {
