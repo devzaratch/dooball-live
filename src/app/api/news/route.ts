@@ -61,13 +61,13 @@ export async function GET(request: Request) {
                 const descMatch = raw.match(/<description>([\s\S]*?)<\/description>/);
                 const imgMatch = raw.match(/src=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp))["']/i) || raw.match(/url=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp))["']/i);
 
-                let title = titleMatch 
+                const title = titleMatch 
                     ? titleMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&#8211;/g, '-').replace(/&#8220;/g, '"').replace(/&#8221;/g, '"').replace(/&#8217;/g, "'").trim() 
                     : '';
-                let link = linkMatch ? linkMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim() : '';
-                let dateStr = dateMatch ? dateMatch[1].trim() : '';
-                let desc = descMatch ? descMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').trim() : '';
-                let img = imgMatch ? imgMatch[1] : '';
+                const link = linkMatch ? linkMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim() : '';
+                const dateStr = dateMatch ? dateMatch[1].trim() : '';
+                const desc = descMatch ? descMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').trim() : '';
+                const img = imgMatch ? imgMatch[1] : '';
 
                 // คัดกรองข่าวที่เป็นฟุตบอลเท่านั้น
                 const isFootball = footballKeywords.some((kw) => title.includes(kw) || desc.includes(kw));

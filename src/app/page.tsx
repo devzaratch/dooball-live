@@ -2,13 +2,28 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import MatchSidebar from '@/components/layout/MatchSidebar';
 import SeoContentSection from '@/components/home/SeoContentSection';
 import { useRealtimeMatches } from '@/hooks/useRealtimeMatches';
 import { useLiveStandings } from '@/hooks/useLiveStandings';
 import MatchCard from '@/components/home/MatchCard';
 import { useFavoriteTeams } from '@/hooks/useFavoriteTeams';
+import { StandingItem } from '@/hooks/useLiveStandings';
 import { Match } from '@/types/football';
+
+// แถวตารางคะแนนฝั่ง sidebar (รองรับทั้งข้อมูลจริงจาก API และ fallback ตัวอย่าง)
+type SidebarRow = Partial<StandingItem> & {
+  rank?: number | string;
+  name?: string;
+  pts?: number | string;
+};
+
+type HomeHighlightItem = {
+  id?: string | number;
+  title: string;
+  thumbnail?: string;
+  league?: string;
+  date?: string;
+};
 import { cn } from '@/lib/utils';
 import { Flame, Radio, Trophy, Film, Search, Sparkles, ChevronRight, Play, Clock, ShieldCheck, Calendar, Star } from 'lucide-react';
 
@@ -37,13 +52,13 @@ const THAI_NAMES_MAP: { [key: string]: string } = {
 
 export default function HomePage() {
   const { matches = [], loading } = useRealtimeMatches([]) || {};
-  const { favorites, isMatchFavorite } = useFavoriteTeams();
+  const { isMatchFavorite } = useFavoriteTeams();
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'TODAY' | 'FAVORITES'>('ALL');
   const [selectedDate, setSelectedDate] = useState<string>('ALL');
   const [selectedLeague, setSelectedLeague] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [sidebarStandings, setSidebarStandings] = useState<any[]>([]);
-  const [homeHighlights, setHomeHighlights] = useState<any[]>([]);
+  const [sidebarStandings, setSidebarStandings] = useState<SidebarRow[]>([]);
+  const [homeHighlights, setHomeHighlights] = useState<HomeHighlightItem[]>([]);
 
   // จำนวนคู่ที่มีทีมโปรดลงแข่งขัน
   const favoriteMatchesCount = useMemo(() => {
@@ -51,7 +66,7 @@ export default function HomePage() {
   }, [matches, isMatchFavorite]);
 
   // Live Standings Auto-Calculation Hook
-  const liveSidebarStandings = useLiveStandings(sidebarStandings, matches);
+  const liveSidebarStandings = useLiveStandings(sidebarStandings as StandingItem[], matches);
 
   useEffect(() => {
     fetch('/api/table?league=4328')
@@ -424,7 +439,13 @@ export default function HomePage() {
           )}
 
           {/* Hierarchical Grouped Fixtures List (จัดกลุ่มตามวันที่ -> ตามลีก) */}
-          {Object.keys(groupedByDateAndLeague).length === 0 ? (
+          {loading && matches.length === 0 ? (
+            <div className="flex flex-col gap-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-20 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
+              ))}
+            </div>
+          ) : Object.keys(groupedByDateAndLeague).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 bg-[#0B0F17]/60 border border-white/10 rounded-3xl text-center p-6 backdrop-blur-xl">
               <Flame className="w-12 h-12 text-slate-600 mb-3" />
               <h3 className="text-base font-bold text-slate-300 mb-1">ไม่พบรายการแข่งขันในเงื่อนไขนี้</h3>
@@ -533,7 +554,7 @@ export default function HomePage() {
                     { intRank: '9', strTeam: 'Bournemouth', intPoints: '56' },
                     { intRank: '10', strTeam: 'Fulham', intPoints: '54' },
                   ]
-              ).map((item: any, idx: number) => {
+              ).map((item: SidebarRow, idx: number) => {
                 const rankNum = item.intRank || item.rank || (idx + 1);
                 const rawName = item.strTeam || item.name || '';
                 const pts = item.intPoints || item.pts || '0';
@@ -574,7 +595,7 @@ export default function HomePage() {
                 { id: '1', title: 'บาเลนเซีย 0-1 เรอัล เบติส | ลาลีกา ไฮไลต์', league: 'ลาลีกา', date: 'วันนี้' },
                 { id: '2', title: 'ซาบาห์ 5-2 ฮาโปเอล เบียร์ เชว่า | ยูฟ่า แชมเปียนส์ ลีก', league: 'ยูฟ่า แชมเปียนส์ลีก', date: 'เมื่อวานนี้' },
                 { id: '3', title: 'ลิเวอร์พูล 7-0 แมนเชสเตอร์ ยูไนเต็ด | ไฮไลท์ พรีเมียร์ลีก', league: 'พรีเมียร์ลีก', date: 'สัปดาห์นี้' },
-              ]).map((item: any, idx: number) => (
+              ]).map((item: HomeHighlightItem, idx: number) => (
                 <Link key={item.id || idx} href="/highlights" className="group flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-rose-500/40 hover:bg-white/5 transition-all">
                   <div className="w-10 h-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform overflow-hidden relative">
                     {item.thumbnail ? (

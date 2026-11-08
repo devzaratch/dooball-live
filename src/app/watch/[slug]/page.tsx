@@ -1,7 +1,11 @@
 import { Metadata } from 'next';
 import WatchClient from './WatchClient'; // แยก Client ส่วนที่เหลือออกมา
+import SportsEventSchema from '@/components/seo/SportsEventSchema';
+import MatchSeoContent from '@/components/seo/MatchSeoContent';
 
 import { adminDb } from '@/lib/firebaseAdmin';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooballlaos.com';
 
 // Fetch match data from server-side using Firebase Admin SDK
 async function getMatch(slug: string) {
@@ -44,6 +48,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
             title: `🔴 ดูบอลสด: ${homeName} VS ${awayName} (${leagueName}) | Dooball Live`,
             description: `ถ่ายทอดสดฟุตบอล ${leagueName} ระหว่าง ${homeName} พบ ${awayName} เวลา ${timeStr} น. คมชัดระดับ HD ไม่กระตุก ฟรี ไม่ต้องสมัครสมาชิก`,
             keywords: [`ดูบอลสด ${homeName}`, `ดูบอลสด ${awayName}`, `ถ่ายทอดสด ${homeName} ${awayName}`, leagueName, 'ดูบอลฟรี'],
+            alternates: {
+                canonical: `${SITE_URL}/watch/${match.slug || slug}`,
+            },
+            robots: {
+                index: true,
+                follow: true,
+            },
             openGraph: {
                 title: `🔴 ดูบอลสด: ${homeName} VS ${awayName}`,
                 description: `ถ่ายทอดสดฟุตบอล ${leagueName} ระหว่าง ${homeName} พบ ${awayName} เวลา ${timeStr} น. คมชัด HD ฟรี`,
@@ -83,5 +94,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params;
-    return <WatchClient slug={slug} />;
+    const match = await getMatch(slug);
+
+    return (
+        <>
+            <WatchClient slug={slug} />
+            {match ? (
+                <>
+                    {/* JSON-LD SportsEvent (ฝังใน HTML เท่านั้น — Google อ่านได้เสมอ) */}
+                    <SportsEventSchema match={match} slug={slug} />
+                    {/* เนื้อหาบทความแบบ server-rendered — แก้ Thin Content ที่ component ฝั่ง client ใช้ ssr:false */}
+                    <div className="max-w-[1600px] mx-auto px-3 md:px-6 pb-10">
+                        <MatchSeoContent match={match} slug={slug} />
+                    </div>
+                </>
+            ) : null}
+        </>
+    );
 }

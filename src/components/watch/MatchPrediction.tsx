@@ -32,7 +32,7 @@ export default function MatchPrediction({ match }: MatchPredictionProps) {
 
         const savedVote = localStorage.getItem(storageKey) as 'home' | 'draw' | 'away' | null;
         if (savedVote) {
-            setUserVote(savedVote);
+            queueMicrotask(() => setUserVote(savedVote));
         }
 
         if (db && matchId) {

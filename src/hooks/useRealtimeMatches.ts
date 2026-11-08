@@ -7,7 +7,6 @@ export function useRealtimeMatches(initialData: Match[] = []) {
     const [matches, setMatches] = useState<Match[]>(initialData);
     const [loading, setLoading] = useState(initialData.length === 0);
     const isMountedRef = useRef(true);
-    const hasInitialLoadRef = useRef(false);
 
     const fetchMatches = useCallback(async () => {
         try {
@@ -21,7 +20,6 @@ export function useRealtimeMatches(initialData: Match[] = []) {
             const data = await res.json();
             if (isMountedRef.current && data?.matches && Array.isArray(data.matches) && data.matches.length > 0) {
                 setMatches(data.matches);
-                hasInitialLoadRef.current = true;
             }
         } catch (err) {
             console.warn('Matches fetch notice:', err);
@@ -36,25 +34,13 @@ export function useRealtimeMatches(initialData: Match[] = []) {
         isMountedRef.current = true;
 
         // 1. Initial immediate fetch
-        fetchMatches();
+        const loadInitial = async () => {
+            await fetchMatches();
+        };
+        loadInitial();
 
-        // 2. Fallback check: if first fetch takes time, try auto-sync backup
-        const autoSyncTimer = setTimeout(async () => {
-            if (!hasInitialLoadRef.current && isMountedRef.current) {
-                try {
-                    const backupRes = await fetch('/api/matches/auto-sync');
-                    const backupData = await backupRes.json();
-                    if (isMountedRef.current && !hasInitialLoadRef.current && backupData?.matches?.length > 0) {
-                        setMatches(backupData.matches);
-                    }
-                } catch {
-                    // Ignore backup errors
-                }
-            }
-        }, 2000);
-
-        // 3. Smart Polling Interval (Every 4 seconds when tab is active, 15s when inactive)
-        let intervalTime = 4000;
+        // 2. Smart Polling Interval (Every 4 seconds when tab is active, 15s when inactive)
+        const intervalTime = 4000;
         let pollTimer: NodeJS.Timeout;
 
         const startPolling = (ms: number) => {
@@ -68,7 +54,7 @@ export function useRealtimeMatches(initialData: Match[] = []) {
 
         startPolling(intervalTime);
 
-        // 4. Handle Visibility Change (Immediate refresh on tab focus)
+        // 3. Handle Visibility Change (Immediate refresh on tab focus)
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 fetchMatches();
@@ -83,7 +69,6 @@ export function useRealtimeMatches(initialData: Match[] = []) {
 
         return () => {
             isMountedRef.current = false;
-            clearTimeout(autoSyncTimer);
             if (pollTimer) clearInterval(pollTimer);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };

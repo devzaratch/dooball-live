@@ -19,9 +19,9 @@ export default function MatchReminderButton({ match, variant = 'button', classNa
     useEffect(() => {
         try {
             const savedReminders: string[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            setIsSaved(savedReminders.includes(match.id));
+            queueMicrotask(() => setIsSaved(savedReminders.includes(match.id)));
         } catch {
-            setIsSaved(false);
+            queueMicrotask(() => setIsSaved(false));
         }
     }, [match.id]);
 

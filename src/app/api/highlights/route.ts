@@ -187,8 +187,8 @@ export async function GET(request: Request) {
                 },
             }
         );
-    } catch (err: any) {
+    } catch (err) {
         console.error('API /api/highlights error:', err);
-        return NextResponse.json({ success: false, error: err?.message || 'Server error' }, { status: 500 });
+        return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
     }
 }

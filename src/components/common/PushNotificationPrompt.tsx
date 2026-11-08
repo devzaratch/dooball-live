@@ -12,8 +12,10 @@ export default function PushNotificationPrompt() {
 
     useEffect(() => {
         if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
-            setSupported(true);
-            setPermission(Notification.permission);
+            queueMicrotask(() => {
+                setSupported(true);
+                setPermission(Notification.permission);
+            });
 
             // Register Service Worker
             navigator.serviceWorker.register('/sw.js').catch((err) => {
@@ -46,13 +48,13 @@ export default function PushNotificationPrompt() {
     const sendTestNotification = (title?: string, body?: string) => {
         if (permission === 'granted' && 'serviceWorker' in navigator) {
             navigator.serviceWorker.ready.then((registration) => {
-                const options: any = {
+                const options = {
                     body: body || 'ทดสอบการส่งแจ้งเตือน: ลิเวอร์พูล vs โคโม่ กำลังถ่ายทอดสด กดเพื่อรับชมทันที!',
                     icon: '/icon',
                     badge: '/icon',
                     vibrate: [200, 100, 200],
                     data: { url: '/watch/liverpool-vs-como' },
-                };
+                } as NotificationOptions & { vibrate?: number[] };
                 registration.showNotification(title || '⚽ แจ้งเตือนบอลสด (DoBallLaos)', options);
                 setTestSent(true);
                 setTimeout(() => setTestSent(false), 3000);
@@ -72,7 +74,7 @@ export default function PushNotificationPrompt() {
     return (
         <>
             {/* Floating Quick Alert Toggle Button (Bottom Left, Positioned above Mobile Bottom Nav) */}
-            <div className="fixed bottom-20 left-4 md:bottom-5 md:left-5 z-40 flex items-center gap-2">
+            <div className="fixed top-24 left-4 md:top-auto md:bottom-5 md:left-5 z-40 flex items-center gap-2">
                 <button
                     onClick={permission === 'granted' ? () => sendTestNotification() : requestPermission}
                     className={cn(

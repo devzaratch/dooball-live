@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import { 
     Shield, Lock, LogOut, Radio, Flag, MessageSquare, Megaphone, 
     Trash2, RefreshCw, CheckCircle2, AlertTriangle, Send, Pin, 
-    Search, Loader2, X, Image as ImageIcon, Plus, Edit2, Ban, Eye, EyeOff, ShieldCheck, UserX
+    Search, Loader2, X, Image as ImageIcon, Plus, Edit2, Ban, Eye, EyeOff, ShieldCheck, UserX,
+    ExternalLink, Copy, Check, Tv, Trophy
 } from 'lucide-react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { useRealtimeMatches } from '@/hooks/useRealtimeMatches';
 import { getMatchRoomKey } from '@/lib/utils';
 import { bannerData as defaultBanners, BannerItem } from '@/components/ads/AdBanner';
-import { CLUB_BADGES } from '@/components/LiveChat';
+import { CLUB_BADGES } from '@/components/chat/LiveChat';
 
 interface StreamReportItem {
     matchId: string;
@@ -21,6 +22,18 @@ interface StreamReportItem {
     streamLabel: string;
     streamUrl: string;
     lastReportedAt?: number;
+}
+
+interface ScorerItem {
+    rank: number;
+    name: string;
+    nameTh?: string;
+    team: string;
+    goals: number;
+    assists: number;
+    penalties?: number;
+    matches: number;
+    photoUrl?: string;
 }
 
 interface ChatLogMessage {
@@ -49,7 +62,7 @@ export default function AdminClient() {
     const [isAuthenticating, setIsAuthenticating] = useState(false);
 
     // 📱 Navigation State
-    const [activeTab, setActiveTab] = useState<'reports' | 'chat' | 'broadcast' | 'banners'>('reports');
+    const [activeTab, setActiveTab] = useState<'reports' | 'chat' | 'broadcast' | 'banners' | 'backups' | 'scorers'>('reports');
 
     // 🚨 Stream Reports State
     const [reports, setReports] = useState<StreamReportItem[]>([]);
@@ -79,6 +92,50 @@ export default function AdminClient() {
     const [broadcastText, setBroadcastText] = useState('');
     const [broadcastMode, setBroadcastMode] = useState<'chat' | 'pin'>('chat');
     const [broadcastStatus, setBroadcastStatus] = useState<string | null>(null);
+
+    // 🏆 Top Scorers Management State
+    const [manageScorersLeagueId, setManageScorersLeagueId] = useState<string>('');
+    const [scorersForm, setScorersForm] = useState<ScorerItem[]>([]);
+    const [scorersStatus, setScorersStatus] = useState<string | null>(null);
+
+    // 🎬 Backup Streams State (จัดการช่องสำรองเฉพาะกิจ)
+    const [backupStreams, setBackupStreams] = useState<Record<string, { id?: string; label?: string; url: string; quality?: string; updatedAt?: number }>>({});
+    const [editingBackupMatch, setEditingBackupMatch] = useState<{ matchKey: string; matchName: string; currentUrl: string } | null>(null);
+    const [backupUrlInput, setBackupUrlInput] = useState<string>('');
+    const [backupSearchQuery, setBackupSearchQuery] = useState<string>('');
+    const [backupStatusFilter, setBackupStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'HAS_BACKUP'>('ALL');
+    const [isSavingBackup, setIsSavingBackup] = useState<boolean>(false);
+    const [copiedUrlKey, setCopiedUrlKey] = useState<string | null>(null);
+
+    // 🩺 Stream Health Check State
+    const [streamHealthMap, setStreamHealthMap] = useState<Record<string, { isOnline?: boolean; status?: number; checking?: boolean; error?: string }>>({});
+
+    const handleCheckStreamHealth = async (url: string) => {
+        if (!url) return;
+        setStreamHealthMap((prev) => ({ ...prev, [url]: { checking: true } }));
+        try {
+            const res = await fetch('/api/admin/actions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'check_stream_health', url }),
+            });
+            const data = await res.json();
+            setStreamHealthMap((prev) => ({
+                ...prev,
+                [url]: {
+                    checking: false,
+                    isOnline: Boolean(data.isOnline),
+                    status: data.status,
+                    error: data.error,
+                },
+            }));
+        } catch {
+            setStreamHealthMap((prev) => ({
+                ...prev,
+                [url]: { checking: false, isOnline: false, error: 'Network error' },
+            }));
+        }
+    };
 
     // 1. ตรวจสอบสถานะการเข้าสู่ระบบเริ่มต้น
     useEffect(() => {
@@ -115,7 +172,7 @@ export default function AdminClient() {
             } else {
                 setAuthError(data.error || 'รหัสผ่านไม่ถูกต้อง');
             }
-        } catch (err: any) {
+        } catch {
             setAuthError('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
         } finally {
             setIsAuthenticating(false);
@@ -215,12 +272,29 @@ export default function AdminClient() {
         return () => unsubscribe();
     }, [isAuthenticated]);
 
+    // 6.1 โหลดข้อมูลช่องสำรอง Realtime จาก Firebase
+    useEffect(() => {
+        if (!isAuthenticated) return;
+
+        const backupRef = ref(db, 'backup_streams');
+        const unsubscribe = onValue(backupRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && typeof data === 'object') {
+                setBackupStreams(data);
+            } else {
+                setBackupStreams({});
+            }
+        });
+
+        return () => unsubscribe();
+    }, [isAuthenticated]);
+
     // 7. ตั้งค่าคู่แมตช์เริ่มต้นสำหรับแท็บแชท
     useEffect(() => {
         if (matches.length > 0 && !selectedMatchId) {
             const firstMatch = matches.find((m) => m.status === 'LIVE') || matches[0];
             const cleanId = firstMatch ? getMatchRoomKey(firstMatch) : '';
-            setSelectedMatchId(cleanId);
+            queueMicrotask(() => setSelectedMatchId(cleanId));
         }
     }, [matches, selectedMatchId]);
 
@@ -527,6 +601,49 @@ export default function AdminClient() {
         }
     };
 
+    // 🛠️ Action: บันทึกลิงก์ช่องสำรองสด
+    const handleSaveBackupStream = async (matchKey: string, url: string) => {
+        if (!matchKey) return;
+        setIsSavingBackup(true);
+        try {
+            const res = await fetch('/api/admin/actions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'save_backup_stream',
+                    matchId: matchKey,
+                    newUrl: url.trim(),
+                    label: 'ช่องสำรอง 2',
+                    quality: '1080p',
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setReportActionStatus(url.trim() ? '✅ บันทึกลิงก์ช่องสำรองสำเร็จ และซิงค์สดไปยังคนดูทันที!' : '🗑️ ลบช่องสำรองเรียบร้อย');
+                setEditingBackupMatch(null);
+                setBackupUrlInput('');
+                setTimeout(() => setReportActionStatus(null), 3500);
+            }
+        } catch (err) {
+            console.error('Failed to save backup stream:', err);
+        } finally {
+            setIsSavingBackup(false);
+        }
+    };
+
+    const handleDeleteBackupStream = async (matchKey: string) => {
+        if (!matchKey) return;
+        if (confirm('⚠️ คุณแน่ใจหรือไม่ว่าต้องการลบช่องสำรองของคู่นี้?')) {
+            await handleSaveBackupStream(matchKey, '');
+        }
+    };
+
+    const copyToClipboard = (text: string, key: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedUrlKey(key);
+        setTimeout(() => setCopiedUrlKey(null), 2000);
+    };
+
     // -------------------------------------------------------------
     // 🔒 SCREEN 1: Admin Authentication Gate
     // -------------------------------------------------------------
@@ -703,6 +820,23 @@ export default function AdminClient() {
                     </button>
 
                     <button
+                        onClick={() => setActiveTab('backups')}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                            activeTab === 'backups'
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/20'
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                        }`}
+                    >
+                        <Radio className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>จัดการลิงก์สำรอง (Backup Streams)</span>
+                        {Object.keys(backupStreams).length > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/30 text-emerald-200 text-[10px] font-black border border-emerald-400/40">
+                                {Object.keys(backupStreams).length}
+                            </span>
+                        )}
+                    </button>
+
+                    <button
                         onClick={() => setActiveTab('broadcast')}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                             activeTab === 'broadcast'
@@ -712,6 +846,20 @@ export default function AdminClient() {
                     >
                         <Megaphone className="w-3.5 h-3.5" />
                         <span>ประกาศทางการจากแอดมิน</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('scorers')}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                            activeTab === 'scorers'
+                                ? 'bg-gradient-to-r from-rose-600 to-rose-500 text-white shadow-lg shadow-rose-600/20'
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                        }`}
+                    >
+                        <Trophy className="w-3.5 h-3.5" />
+                        <span>จัดการอันดับดาวซัลโว</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-white text-[10px] font-bold">
+                            {scorersForm.length} รายการ
+                        </span>
                     </button>
                 </div>
 
@@ -1107,6 +1255,169 @@ export default function AdminClient() {
                 )}
 
                 {/* ========================================================= */}
+                {/* TAB: 🏆 จัดการอันดับดาวซัลโว (Top Scorers Management) */}
+                {/* ========================================================= */}
+                {activeTab === 'scorers' && (
+                    <div className="space-y-5">
+                        <div className="p-4 rounded-3xl bg-[#0B0F17]/90 border border-white/10 space-y-3">
+                            <h2 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+                                <Trophy className="w-4 h-4 text-amber-400" />
+                                จัดการอันดับดาวซัลโว
+                            </h2>
+                            <p className="text-xs text-slate-400">
+                                อัปเดตอันดับดาวซัลโวสูงสุดสำหรับลีกที่เลือก เลือกลีกกดข้อมูลได้ทันที
+                            </p>
+                        </div>
+
+                        {/* League Selector & Form */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {/* League Selector */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                                    เลือกลีก
+                                </label>
+                                <select
+                                    value={manageScorersLeagueId}
+                                    onChange={(e) => setManageScorersLeagueId(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-amber-400/50"
+                                >
+                                    <option value="">-- เลือกลีก --</option>
+                                    <option value="4328">พรีเมียร์ลีก (4328)</option>
+                                    <option value="4335">ลาลีกา (4335)</option>
+                                    <option value="4331">บุนเดสลีกา (4331)</option>
+                                    <option value="4332">เซเรียอา (4332)</option>
+                                    <option value="4334">ลีกเอิง (4334)</option>
+                                </select>
+                            </div>
+
+                            {/* Scorers Form */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                                    ป้อนข้อมูลดาวซัลโว (สูงสุด 20 อันดับ)
+                                </label>
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                    {scorersForm.map((player, idx) => (
+                                        <div
+                                            key={player.name}
+                                            className="p-3 rounded-2xl bg-black/50 border border-white/10 flex items-center gap-3 space-x-3"
+                                        >
+                                            <span className="flex-1 text-xs text-slate-400">{player.rank}.</span>
+                                            <input
+                                                value={player.name}
+                                                onChange={(e) => {
+                                                    const newForm = [...scorersForm];
+                                                    newForm[idx] = { ...newForm[idx], name: e.target.value };
+                                                    setScorersForm(newForm);
+                                                }}
+                                                placeholder="ชื่อผู้เล่น"
+                                                className="flex-1 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-amber-400/50"
+                                                maxLength={50}
+                                            />
+                                            <input
+                                                value={player.team}
+                                                onChange={(e) => {
+                                                    const newForm = [...scorersForm];
+                                                    newForm[idx] = { ...newForm[idx], team: e.target.value };
+                                                    setScorersForm(newForm);
+                                                }}
+                                                placeholder="ทีม"
+                                                className="w-32 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-amber-400/50"
+                                                maxLength={50}
+                                            />
+                                            <input
+                                                value={player.goals}
+                                                type="number"
+                                                onChange={(e) => {
+                                                    const newForm = [...scorersForm];
+                                                    newForm[idx] = { ...newForm[idx], goals: Number(e.target.value) };
+                                                    setScorersForm(newForm);
+                                                }}
+                                                min="0"
+                                                className="w-24 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-400/50"
+                                            />
+                                            <input
+                                                value={player.assists}
+                                                type="number"
+                                                onChange={(e) => {
+                                                    const newForm = [...scorersForm];
+                                                    newForm[idx] = { ...newForm[idx], assists: Number(e.target.value) };
+                                                    setScorersForm(newForm);
+                                                }}
+                                                min="0"
+                                                className="w-24 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-400/50"
+                                            />
+                                            <button
+                                                onClick={() => setScorersForm(prev => prev.filter((_, i) => i !== idx))}
+                                                className="text-xs text-rose-400 hover:text-rose-300"
+                                            >
+                                                ❌
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {scorersForm.length < 20 && (
+                                        <button
+                                            onClick={() => setScorersForm(prev => [...prev, { rank: prev.length + 1, name: '', team: '', goals: 0, assists: 0, penalties: 0, matches: 0 }])}
+                                            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-400 flex items-center gap-1.5 transition-all cursor-pointer hover:bg-amber-500/20"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            เพิ่มบรรทัดใหม่
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 pt-3 border-t border-white/10">
+                            <button
+                                onClick={() => setScorersForm([])}
+                                className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-400 transition-all cursor-pointer"
+                            >
+                                รีเซ็ตฟอร์ม
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!manageScorersLeagueId || scorersForm.length === 0) {
+                                        setScorersStatus('กรุณาเลือกลีกและป้อนข้อมูลดาวซัลโว');
+                                        setTimeout(() => setScorersStatus(null), 3000);
+                                        return;
+                                    }
+                                    setScorersStatus('กำลังบันทึก...');
+                                    try {
+                                        const res = await fetch('/api/admin/actions', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                action: 'save_scorers',
+                                                leagueId: manageScorersLeagueId,
+                                                scorers: scorersForm,
+                                            }),
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                            setScorersStatus(`บันทึกดาวซัลโว ${data.count} รายการ สำเร็จ`);
+                                            setTimeout(() => setScorersStatus(null), 3000);
+                                            setScorersForm([]);
+                                            setManageScorersLeagueId('');
+                                        } else {
+                                            setScorersStatus(`ผิดพลาด: ${data.error}`);
+                                            setTimeout(() => setScorersStatus(null), 3000);
+                                        }
+                                    } catch (err) {
+                                        console.error('Save scorers failed:', err);
+                                        setScorersStatus('เกิดข้อผิดพลาดในการบันทึก');
+                                        setTimeout(() => setScorersStatus(null), 3000);
+                                    }
+                                }}
+                                className="flex-1 py-2 rounded-xl bg-[#E5B842] hover:bg-amber-400 text-black text-xs font-extrabold shadow-lg shadow-amber-500/20 cursor-pointer"
+                            >
+                                บันทึกอันดับดาวซัลโว
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* ========================================================= */}
                 {/* TAB 3: 🖼️ จัดการแบนเนอร์โฆษณา (Ad Banner Management) */}
                 {/* ========================================================= */}
                 {activeTab === 'banners' && (
@@ -1422,6 +1733,403 @@ export default function AdminClient() {
                                 ส่งประกาศเดี๋ยวนี้
                             </button>
                         </form>
+                    </div>
+                )}
+
+                {/* ========================================================= */}
+                {/* TAB 5: 🎬 จัดการลิงก์สำรอง (Dedicated Backup Streams)   */}
+                {/* ========================================================= */}
+                {activeTab === 'backups' && (
+                    <div className="space-y-6">
+                        {/* Header & Description */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-[#0B0F17] to-teal-950/30 border border-emerald-500/20 backdrop-blur-xl">
+                            <div className="space-y-1">
+                                <h2 className="text-base sm:text-lg font-black text-slate-100 flex items-center gap-2">
+                                    <Radio className="w-5 h-5 text-emerald-400" />
+                                    จัดการลิงก์ช่องสำรองเฉพาะกิจ (Backup Streams)
+                                </h2>
+                                <p className="text-xs text-slate-400 max-w-3xl">
+                                    แอดมินสามารถเพิ่มหรือสลับลิงก์ <strong>ช่องสำรอง 2</strong> แยกเป็นรายคู่ได้ทันที (รองรับทั้ง <code className="text-emerald-300">.flv</code>, <code className="text-emerald-300">.m3u8</code>) โดยระบบมี Stream Proxy ปลดล็อกระบบกันดูดให้อัตโนมัติ และจะส่งสัญญาณใหม่ไปยังผู้ชมสดทันทีโดยไม่ต้องรีเฟรชหน้าเว็บ
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-300">
+                                    เปิดใช้งานอยู่: {Object.keys(backupStreams).length} คู่
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Search & Status Filters */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                            {/* Search */}
+                            <div className="relative flex-1">
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={backupSearchQuery}
+                                    onChange={(e) => setBackupSearchQuery(e.target.value)}
+                                    placeholder="ค้นหาตามชื่อทีม (เหย้า/เยือน) หรือชื่อลีก..."
+                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50"
+                                />
+                                {backupSearchQuery && (
+                                    <button
+                                        onClick={() => setBackupSearchQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Status Filter Buttons */}
+                            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-white/10 overflow-x-auto">
+                                {(
+                                    [
+                                        { id: 'ALL', label: 'ทั้งหมด' },
+                                        { id: 'LIVE', label: '🔴 กำลังเตะ' },
+                                        { id: 'UPCOMING', label: '⏰ รอแข่ง' },
+                                        { id: 'HAS_BACKUP', label: '🌟 มีช่องสำรอง' },
+                                    ] as const
+                                ).map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setBackupStatusFilter(tab.id)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                            backupStatusFilter === tab.id
+                                                ? 'bg-emerald-600 text-white shadow-md'
+                                                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                                        }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Match List Grid */}
+                        {(() => {
+                            const filteredMatches = matches.filter((m) => {
+                                const matchKey = getMatchRoomKey(m);
+                                const hasBackup = Boolean(
+                                    backupStreams[matchKey]?.url ||
+                                    m.streamLinks?.some((s) => s.id?.includes('backup') || s.label?.includes('สำรอง') || s.url?.includes('channel19'))
+                                );
+
+                                if (backupStatusFilter === 'LIVE' && m.status !== 'LIVE') return false;
+                                if (backupStatusFilter === 'UPCOMING' && m.status !== 'UPCOMING') return false;
+                                if (backupStatusFilter === 'HAS_BACKUP' && !hasBackup) return false;
+
+                                if (backupSearchQuery.trim()) {
+                                    const q = backupSearchQuery.toLowerCase();
+                                    const homeName = (m.homeTeam?.name || '').toLowerCase();
+                                    const awayName = (m.awayTeam?.name || '').toLowerCase();
+                                    const leagueName = (m.league?.name || '').toLowerCase();
+                                    return homeName.includes(q) || awayName.includes(q) || leagueName.includes(q);
+                                }
+                                return true;
+                            });
+
+                            if (filteredMatches.length === 0) {
+                                return (
+                                    <div className="py-16 rounded-3xl bg-[#0B0F17]/60 border border-white/10 text-center flex flex-col items-center justify-center gap-3">
+                                        <div className="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-500">
+                                            <Search className="w-6 h-6" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-300">ไม่พบคู่การแข่งขันตามเงื่อนไขที่เลือก</p>
+                                        <p className="text-xs text-slate-500">ลองล้างคำค้นหา หรือเลือกตัวกรองสถานะอื่น</p>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {filteredMatches.map((m) => {
+                                        const matchKey = getMatchRoomKey(m);
+                                        const activeBackup = backupStreams[matchKey] || (
+                                            m.streamLinks?.find((s) => s.id?.includes('backup') || s.label?.includes('สำรอง') || s.url?.includes('channel19'))
+                                                ? { url: m.streamLinks.find((s) => s.id?.includes('backup') || s.label?.includes('สำรอง') || s.url?.includes('channel19'))!.url, label: 'ช่องสำรอง 2' }
+                                                : null
+                                        );
+                                        const matchName = `${m.homeTeam?.name || 'ทีมเหย้า'} vs ${m.awayTeam?.name || 'ทีมเยือน'}`;
+                                        const mainStreamUrl = (m.streamLinks?.[0]?.url && m.streamLinks[0].url !== '#')
+                                            ? m.streamLinks[0].url
+                                            : ((m as any).link && (m as any).link !== '#' ? (m as any).link : ((m as any).embed_url !== '#' ? (m as any).embed_url || '' : ''));
+
+                                        return (
+                                            <div
+                                                key={m.id || matchKey}
+                                                className={`p-5 rounded-3xl bg-[#0B0F17]/90 border transition-all space-y-4 shadow-xl backdrop-blur-xl ${
+                                                    activeBackup
+                                                        ? 'border-emerald-500/30 bg-gradient-to-b from-emerald-950/10 via-[#0B0F17]/90 to-[#0B0F17]'
+                                                        : 'border-white/10 hover:border-white/20'
+                                                }`}
+                                            >
+                                                {/* Match Header */}
+                                                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                                                    <div className="flex items-center gap-2 truncate">
+                                                        <span className="text-[11px] font-bold text-[#E5B842] truncate">
+                                                            {m.league?.name || 'ฟุตบอลสด'}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-500">•</span>
+                                                        <span className="text-[10px] text-slate-400 font-mono">
+                                                            {m.kickoffTime}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        {m.status === 'LIVE' ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 text-[10px] font-extrabold border border-rose-500/30 animate-pulse">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                                LIVE
+                                                            </span>
+                                                        ) : m.status === 'FINISHED' ? (
+                                                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold border border-white/5">
+                                                                จบการแข่งขัน
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 text-[10px] font-bold border border-amber-500/20">
+                                                                รอเตะ
+                                                            </span>
+                                                        )}
+
+                                                        <a
+                                                            href={`/watch/${m.slug || m.id}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            title="เปิดดูหน้าถ่ายทอดสดของคู่นี้"
+                                                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-all"
+                                                        >
+                                                            <ExternalLink className="w-3.5 h-3.5" />
+                                                        </a>
+                                                    </div>
+                                                </div>
+
+                                                {/* Teams Scoreboard Display */}
+                                                <div className="flex items-center justify-between gap-4 py-1">
+                                                    {/* Home */}
+                                                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                                                        <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                                                            {m.homeTeam?.logo ? (
+                                                                <img src={m.homeTeam.logo} alt="" className="w-full h-full object-contain" />
+                                                            ) : (
+                                                                <span className="text-[10px] font-bold text-slate-400">H</span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-xs font-bold text-slate-100 truncate">
+                                                            {m.homeTeam?.name}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Score or VS */}
+                                                    <div className="px-3 py-1 rounded-xl bg-white/5 border border-white/5 text-xs font-mono font-black text-amber-300">
+                                                        {m.status === 'LIVE' || m.status === 'FINISHED'
+                                                            ? `${m.homeTeam?.score ?? 0} - ${m.awayTeam?.score ?? 0}`
+                                                            : 'VS'}
+                                                    </div>
+
+                                                    {/* Away */}
+                                                    <div className="flex items-center gap-2.5 flex-1 min-w-0 justify-end text-right">
+                                                        <span className="text-xs font-bold text-slate-100 truncate">
+                                                            {m.awayTeam?.name}
+                                                        </span>
+                                                        <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                                                            {m.awayTeam?.logo ? (
+                                                                <img src={m.awayTeam.logo} alt="" className="w-full h-full object-contain" />
+                                                            ) : (
+                                                                <span className="text-[10px] font-bold text-slate-400">A</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Streams Info & Actions */}
+                                                <div className="space-y-2 pt-2 border-t border-white/5">
+                                                    {/* Main Stream Reference */}
+                                                    <div className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                                        <div className="flex items-center gap-2 truncate text-slate-400">
+                                                            <Tv className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                                            <span className="font-semibold text-slate-300">ช่อง 1 (HD หลัก):</span>
+                                                            <span className="font-mono text-slate-500 truncate max-w-[200px] sm:max-w-[280px]">
+                                                                {mainStreamUrl || 'ไม่มี URL'}
+                                                            </span>
+                                                        </div>
+                                                        {mainStreamUrl && (
+                                                            <button
+                                                                onClick={() => copyToClipboard(mainStreamUrl, `main-${matchKey}`)}
+                                                                title="คัดลอกลิงก์หลัก"
+                                                                className="text-slate-500 hover:text-slate-300 p-1 cursor-pointer"
+                                                            >
+                                                                {copiedUrlKey === `main-${matchKey}` ? (
+                                                                    <Check className="w-3 h-3 text-emerald-400" />
+                                                                ) : (
+                                                                    <Copy className="w-3 h-3" />
+                                                                )}
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Backup Stream Row */}
+                                                    {activeBackup ? (
+                                                        <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-300">
+                                                                    <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                                                                    ช่องสำรอง 2 (เปิดใช้งานสด)
+                                                                </span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingBackupMatch({
+                                                                                matchKey,
+                                                                                matchName,
+                                                                                currentUrl: activeBackup.url,
+                                                                            });
+                                                                            setBackupUrlInput(activeBackup.url);
+                                                                        }}
+                                                                        className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[11px] font-bold border border-emerald-500/40 cursor-pointer transition-all active:scale-95"
+                                                                    >
+                                                                        แก้ไขลิงก์
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteBackupStream(matchKey)}
+                                                                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 cursor-pointer transition-all active:scale-95"
+                                                                        title="ลบช่องสำรองนี้"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[11px] font-mono text-emerald-200/80 bg-black/40 px-2.5 py-1.5 rounded-xl border border-emerald-500/20">
+                                                                <span className="truncate max-w-[280px] sm:max-w-[400px]">
+                                                                    {activeBackup.url}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => copyToClipboard(activeBackup.url, `backup-${matchKey}`)}
+                                                                    title="คัดลอกลิงก์สำรอง"
+                                                                    className="text-emerald-400 hover:text-emerald-200 ml-2 cursor-pointer"
+                                                                >
+                                                                    {copiedUrlKey === `backup-${matchKey}` ? (
+                                                                        <Check className="w-3 h-3 text-emerald-300" />
+                                                                    ) : (
+                                                                        <Copy className="w-3 h-3" />
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] border border-dashed border-white/10">
+                                                            <span className="text-xs text-slate-500">
+                                                                ยังไม่มีการกำหนดช่องสำรอง
+                                                            </span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingBackupMatch({
+                                                                        matchKey,
+                                                                        matchName,
+                                                                        currentUrl: '',
+                                                                    });
+                                                                    setBackupUrlInput('');
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md cursor-pointer transition-all active:scale-95"
+                                                            >
+                                                                <Plus className="w-3.5 h-3.5" />
+                                                                เพิ่มช่องสำรอง
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Modal: Add or Edit Backup Stream */}
+                        {editingBackupMatch && (
+                            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="w-full max-w-lg rounded-3xl bg-[#0B0F17] border border-emerald-500/30 p-6 space-y-5 shadow-2xl animate-in zoom-in-95">
+                                    <div className="flex items-start justify-between border-b border-white/10 pb-3">
+                                        <div className="space-y-1">
+                                            <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                                                <Radio className="w-4 h-4 text-emerald-400" />
+                                                ตั้งค่าช่องสำรอง 2
+                                            </h3>
+                                            <p className="text-xs text-slate-400">
+                                                คู่แข่งขัน: <strong className="text-emerald-300">{editingBackupMatch.matchName}</strong>
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setEditingBackupMatch(null)}
+                                            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    <form
+                                        onSubmit={(e) => {
+                                            e.preventDefault();
+                                            handleSaveBackupStream(editingBackupMatch.matchKey, backupUrlInput);
+                                        }}
+                                        className="space-y-4"
+                                    >
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                                                <span>URL ลิงก์สตรีมช่องสำรอง:</span>
+                                                <span className="text-[10px] text-emerald-400 font-normal">รองรับ .flv, .m3u8, mp4</span>
+                                            </label>
+                                            <input
+                                                type="url"
+                                                value={backupUrlInput}
+                                                onChange={(e) => setBackupUrlInput(e.target.value)}
+                                                placeholder="https://live2.domainkqt.cc/live/channel19.flv"
+                                                required
+                                                autoFocus
+                                                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/60 font-mono"
+                                            />
+                                            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300/90 leading-relaxed space-y-1">
+                                                <p><strong>💡 ปลดล็อกอัตโนมัติ:</strong> หากเป็นลิงก์จาก <code>domainkqt.cc</code> หรือไฟล์ <code>.flv</code> ระบบ Stream Proxy ของเว็บจะแปลงและแก้ระบบกันดูด (Referer Block) ให้ผู้ชมเปิดดูได้ลื่นไหลทันที</p>
+                                                <div className="pt-1 flex items-center gap-2">
+                                                    <span className="text-[10px] text-slate-400">ตัวอย่างสตรีมทดสอบ:</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setBackupUrlInput('https://live2.domainkqt.cc/live/channel19.flv')}
+                                                        className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 cursor-pointer font-mono"
+                                                    >
+                                                        + ใส่ลิงก์ Channel 19
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingBackupMatch(null)}
+                                                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold cursor-pointer"
+                                            >
+                                                ยกเลิก
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={isSavingBackup}
+                                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-lg shadow-emerald-600/30 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                                            >
+                                                {isSavingBackup ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <>
+                                                        <Check className="w-4 h-4" />
+                                                        บันทึกและส่งสดให้คนดูทันที
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

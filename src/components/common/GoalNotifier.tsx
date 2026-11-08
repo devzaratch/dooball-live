@@ -97,13 +97,14 @@ export default function GoalNotifier() {
         try {
             const saved = localStorage.getItem(STORAGE_MUTE_KEY);
             if (saved !== null) {
-                setIsMuted(saved === 'true');
+                queueMicrotask(() => setIsMuted(saved === 'true'));
             }
         } catch {}
 
-        const handleSoundToggle = (e: any) => {
-            if (e.detail && typeof e.detail.isMuted === 'boolean') {
-                setIsMuted(e.detail.isMuted);
+        const handleSoundToggle = (e: Event) => {
+            const detail = (e as CustomEvent<{ isMuted: boolean }>).detail;
+            if (detail && typeof detail.isMuted === 'boolean') {
+                setIsMuted(detail.isMuted);
             }
         };
 

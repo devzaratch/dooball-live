@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { ref, push, onChildAdded, onChildRemoved, onValue, get, remove, DataSnapshot, Unsubscribe } from 'firebase/database';
 import { db } from '@/lib/firebase';
-import { User, Volume2, VolumeX, Sparkles, Send, Trash2, Megaphone, ShieldAlert, Settings, Check, X } from 'lucide-react';
+import { User, Volume2, VolumeX, Sparkles, Send, Trash2, Megaphone, ShieldAlert, Settings, X } from 'lucide-react';
 
 export interface ClubBadgeInfo {
     id: string;
@@ -130,7 +130,16 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
     const [isBanned, setIsBanned] = useState(false);
     const [banReason, setBanReason] = useState<string>('');
     const [cooldown, setCooldown] = useState(0);
+    const [isAdmin, setIsAdmin] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // เช็คว่าเครื่องนี้ล็อกอินแอดมินอยู่หรือไม่ (ใช้ซ่อนปุ่มล้างแชทจากคนทั่วไป)
+    useEffect(() => {
+        fetch('/api/admin/auth', { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => setIsAdmin(Boolean(d?.authenticated)))
+            .catch(() => setIsAdmin(false));
+    }, []);
 
     // 1. Initial Setup: Load User Device ID, Nickname, Club Badge
     useEffect(() => {
@@ -139,19 +148,20 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
             storedUid = 'u_' + Math.random().toString(36).slice(2, 9);
             localStorage.setItem('dooball_user_id', storedUid);
         }
-        setUserId(storedUid);
-
         const savedName = localStorage.getItem('chat_nickname');
-        if (savedName) {
-            setNickname(savedName);
-            setTempNickname(savedName);
-        }
-
         const savedBadge = localStorage.getItem('chat_club_badge');
-        if (savedBadge) {
-            setSelectedBadge(savedBadge);
-            setTempBadge(savedBadge);
-        }
+
+        queueMicrotask(() => {
+            setUserId(storedUid);
+            if (savedName) {
+                setNickname(savedName);
+                setTempNickname(savedName);
+            }
+            if (savedBadge) {
+                setSelectedBadge(savedBadge);
+                setTempBadge(savedBadge);
+            }
+        });
     }, []);
 
     // 2. Listen to Ban Status from Firebase
@@ -202,8 +212,6 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
 
     // Auto-clean expired chat history (> 24 hours) & Realtime message subscription
     useEffect(() => {
-        setMessages([]);
-
         const chatRef = ref(db, `chats/${matchId}`);
         const noticeRef = ref(db, `chat_notices/${matchId}`);
 
@@ -278,6 +286,7 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
 
     const handleClearChat = async () => {
         if (!matchId) return;
+        if (!isAdmin) return; // เฉพาะแอดมินเท่านั้น
         if (confirm('คุณต้องการล้างข้อความแชทในห้องนี้ทั้งหมดใช่หรือไม่?')) {
             try {
                 const chatRef = ref(db, `chats/${matchId}`);
@@ -410,13 +419,15 @@ export default function LiveChat({ matchId, homeTeamName, awayTeamName }: LiveCh
                     >
                         {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
                     </button>
-                    <button
-                        onClick={handleClearChat}
-                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors cursor-pointer ml-1"
-                        title="ล้างข้อความแชทในห้องนี้"
-                    >
-                        <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {isAdmin && (
+                        <button
+                            onClick={handleClearChat}
+                            className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors cursor-pointer ml-1"
+                            title="ล้างข้อความแชทในห้องนี้ (แอดมิน)"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    )}
                 </div>
             </div>
 

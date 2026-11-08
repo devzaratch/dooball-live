@@ -7,6 +7,7 @@ export interface StreamLink {
     id: string;
     label: string;
     url: string;
+    quality?: string;
 }
 
 interface StreamSelectorProps {

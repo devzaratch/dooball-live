@@ -125,6 +125,7 @@ export default function NewsClient() {
     const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
     const [articles, setArticles] = useState<NewsArticle[]>(MOCK_ARTICLES);
     const [loading, setLoading] = useState(true);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -390,16 +391,19 @@ export default function NewsClient() {
                                     </a>
                                 )}
                                 <button 
-                                    onClick={() => {
-                                        if (navigator.clipboard) {
-                                            navigator.clipboard.writeText(selectedArticle.link || window.location.href);
-                                            alert('คัดลอกลิงก์ข่าวเรียบร้อยแล้ว!');
+                                    onClick={async () => {
+                                        try {
+                                            await navigator.clipboard.writeText(selectedArticle.link || window.location.href);
+                                            setCopied(true);
+                                            setTimeout(() => setCopied(false), 2000);
+                                        } catch {
+                                            // บราวเซอร์บางตัวไม่รองรับ clipboard — ปล่อยเงียบ
                                         }
                                     }}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-200 font-bold transition-colors cursor-pointer border border-white/10"
                                 >
                                     <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                                    แชร์ข่าว
+                                    {copied ? 'คัดลอกแล้ว ✓' : 'แชร์ข่าว'}
                                 </button>
                             </div>
                         </div>

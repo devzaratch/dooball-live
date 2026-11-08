@@ -6,7 +6,10 @@
     "dev": "next dev -p 3008",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "telegram:poll": "node scripts/telegram-poll.mjs",
+    "telegram:watch": "node scripts/telegram-watch.mjs",
+    "telegram:notify": "node scripts/match-notify.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -14,6 +17,7 @@
     "firebase-admin": "^14.2.0",
     "hls.js": "^1.7.0",
     "lucide-react": "^1.31.0",
+    "mpegts.js": "^1.8.2",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

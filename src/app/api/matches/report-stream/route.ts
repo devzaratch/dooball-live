@@ -61,10 +61,10 @@ export async function POST(req: NextRequest) {
             success: true,
             message: 'บันทึกรายงานสัญญาณเสียสำเร็จ',
         });
-    } catch (err: any) {
+    } catch (err) {
         console.error('API report-stream error:', err);
         return NextResponse.json(
-            { success: false, error: err?.message || 'Server error' },
+            { success: false, error: 'Internal error' },
             { status: 500 }
         );
     }

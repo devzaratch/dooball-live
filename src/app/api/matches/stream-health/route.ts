@@ -36,7 +36,8 @@ export async function GET(request: Request) {
             latencyMs: health.latency,
             timestamp: new Date().toISOString(),
         });
-    } catch (err: any) {
-        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    } catch (err) {
+        console.error('API stream-health error:', err);
+        return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
     }
 }

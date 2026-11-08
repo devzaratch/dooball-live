@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Radio, Home, ArrowLeft } from 'lucide-react';
+import { Radio, Home } from 'lucide-react';
 
 export default function NotFound() {
     return (

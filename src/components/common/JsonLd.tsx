@@ -2,13 +2,13 @@ import React from 'react';
 
 interface JsonLdProps {
     type?: 'website' | 'event' | 'faq';
-    data?: any;
+    data?: Record<string, unknown>;
 }
 
 export default function JsonLd({ type = 'website', data }: JsonLdProps) {
-    let schemaData: any = null;
+    let schemaData: Record<string, unknown> | null = null;
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3008';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooballlaos.com';
 
     if (type === 'website') {
         schemaData = {
@@ -26,20 +26,24 @@ export default function JsonLd({ type = 'website', data }: JsonLdProps) {
             inLanguage: ['th-TH', 'lo-LA'],
         };
     } else if (type === 'event' && data) {
+        const homeName = String((data.homeTeam as Record<string, unknown> | undefined)?.name || data.home || 'ทีมเหย้า');
+        const awayName = String((data.awayTeam as Record<string, unknown> | undefined)?.name || data.away || 'ทีมเยือน');
+        const leagueName = String((data.league as Record<string, unknown> | undefined)?.name || data.league || '');
+
         schemaData = {
             '@context': 'https://schema.org',
             '@type': 'SportsEvent',
-            name: `${data.homeTeam?.name || data.home || 'ทีมเหย้า'} vs ${data.awayTeam?.name || data.away || 'ทีมเยือน'}`,
-            description: `ถ่ายทอดสดฟุตบอล ${data.league?.name || data.league || ''} ระหว่าง ${data.homeTeam?.name || data.home} พบ ${data.awayTeam?.name || data.away}`,
+            name: `${homeName} vs ${awayName}`,
+            description: `ถ่ายทอดสดฟุตบอล ${leagueName} ระหว่าง ${homeName} พบ ${awayName}`,
             startDate: new Date().toISOString(),
             competitor: [
                 {
                     '@type': 'SportsTeam',
-                    name: data.homeTeam?.name || data.home || 'Home Team',
+                    name: homeName,
                 },
                 {
                     '@type': 'SportsTeam',
-                    name: data.awayTeam?.name || data.away || 'Away Team',
+                    name: awayName,
                 },
             ],
             location: {

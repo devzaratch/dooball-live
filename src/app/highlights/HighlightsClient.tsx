@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Film, Play, Calendar, Eye, X, Tv, Sparkles, CheckCircle2, Search, RefreshCw, Loader2 } from 'lucide-react';
+import { Film, Play, Calendar, X, CheckCircle2, Search, RefreshCw, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import SocialShareBar from '@/components/common/SocialShareBar';
 
@@ -98,7 +98,10 @@ export default function HighlightsClient() {
     };
 
     useEffect(() => {
-        fetchLatestHighlights();
+        const load = async () => {
+            await fetchLatestHighlights();
+        };
+        load();
     }, []);
 
     // คำนวณแท็บลีกที่มีคลิปจริง

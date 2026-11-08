@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dooball Live ⚽ (ดูบอลสด)
 
-## Getting Started
+เว็บถ่ายทอดสดฟุตบอลฟรี รองรับ ไทย/ลาว — ดูบอลสด, ตารางคะแนน, ไฮไลท์, ข่าว, แชทสด และหลังบ้านแอดมิน
 
-First, run the development server:
+## Tech Stack
+
+- **Next.js 16** (App Router) + **React 19** + **TypeScript**
+- **Tailwind CSS 4**
+- **Firebase Realtime Database** (asia-southeast1) — client + admin SDK
+- **hls.js** — เล่นสตรีม m3u8
+- Port dev: **3008**
+
+## เริ่มต้น (เครื่อง dev)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3008
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## ตั้งค่า Environment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+ก๊อปปี้ `.env.local.example` เป็น `.env.local` แล้วใส่ค่าจริง:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| ตัวแปร | ใช้ทำอะไร |
+|---|---|
+| `NEXT_PUBLIC_FIREBASE_*` | ต่อ Firebase (มาจาก Firebase Console) |
+| `ADMIN_PASSWORD`, `ADMIN_SECRET_KEY` | รหัสเข้าหน้า `/admin` — **ไม่มี = เข้าหลังบ้านไม่ได้เลย** |
+| `FIREBASE_SERVICE_ACCOUNT_KEY` | กุญแจ Admin SDK (JSON หรือ Base64) — จำเป็นตอนขึ้นเซิร์ฟเวอร์จริง |
+| `NEXT_PUBLIC_SITE_URL` | โดเมนจริง `https://dooballlaos.com` (SEO/canonical) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_IDS` | ระบบสั่งงานผ่าน Telegram |
 
-## Learn More
+> ⚠️ `serviceAccountKey.json` ถูกลบออกจากโปรเจคแล้ว ใช้ env `FIREBASE_SERVICE_ACCOUNT_KEY` อย่างเดียว
 
-To learn more about Next.js, take a look at the following resources:
+## คำสั่ง
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev             # dev server พอร์ต 3008
+npm run build           # build เช็กก่อนขึ้นเซิร์ฟเวอร์
+npm run lint            # eslint
+npx tsc --noEmit        # เช็ก types
+npm run telegram:poll   # เปิดตัวรับคำสั่ง Telegram (dev ไม่ต้องมี public URL)
+npm run telegram:watch  # เฝ้ากล่องงาน Telegram (ปลุกเมื่อมีงานใหม่)
+npm run telegram:notify # แจ้งเตือนอัตโนมัติ: บอลเริ่มเตะ, จบแล้ว, สตรีมเสีย
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## คำสั่ง Telegram (บอท @Forcill_bot)
 
-## Deploy on Vercel
+- `/help` `/status` `/summary` — ตอบทันที
+- `/delta <งาน>` หรือข้อความธรรมดา — เก็บเข้ากล่องงานให้ Delta
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy (Vercel)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. ตั้งค่า Environment Variables ใน Vercel Project → Settings → Environment Variables
+   (ดูตัวแปรทั้งหมดใน [`.env.local.example`](./.env.local.example))
+2. ต้องมี `FIREBASE_SERVICE_ACCOUNT_KEY` (Base64 JSON) ใน Production Variables
+3. Vercel จะ build + deploy อัตโนมัติเมื่อ push ไป main
+4. ตั้ง Custom Domain ไป `dooballlaos.com` ใน Vercel Domain Settings
+
+## โครงสร้างโปรเจค
+
+```
+src/
+  app/           # หน้าเว็บ + API (admin, matches, table, highlights, news, og, proxy, stream, telegram)
+  components/    # player, chat, layout, home, watch, table, ads, common
+  hooks/         # realtime matches, standings, viewers, reactions, favorites
+  lib/           # firebase, firebaseAdmin, rateLimit, safeFetch, telegram, streamHealth
+  context/       # LanguageContext (TH/LA)
+  types/         # football, news
+scripts/         # telegram-poll.mjs, telegram-watch.mjs
+```

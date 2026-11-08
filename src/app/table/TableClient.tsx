@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trophy, Loader2, ShieldCheck, Activity, Flame, Target } from 'lucide-react';
+import { Trophy, Loader2, ShieldCheck, Activity, Flame } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useRealtimeMatches } from '@/hooks/useRealtimeMatches';
 import { useLiveStandings } from '@/hooks/useLiveStandings';
@@ -30,11 +30,11 @@ interface StandingItem {
 }
 
 const LEAGUES = [
-    { id: '4328', name: 'พรีเมียร์ลีก', fullName: 'พรีเมียร์ลีก อังกฤษ', season: '2024-2025' },
-    { id: '4335', name: 'ลาลีกา', fullName: 'ลาลีกา สเปน', season: '2024-2025' },
-    { id: '4332', name: 'เซเรียอา', fullName: 'กัลโช่ เซเรียอา อิตาลี', season: '2024-2025' },
-    { id: '4331', name: 'บุนเดสลีกา', fullName: 'บุนเดสลีกา เยอรมัน', season: '2024-2025' },
-    { id: '4334', name: 'ลีกเอิง', fullName: 'ลีกเอิง ฝรั่งเศส', season: '2024-2025' },
+    { id: '4328', name: 'พรีเมียร์ลีก', fullName: 'พรีเมียร์ลีก อังกฤษ', season: '2026-2027' },
+    { id: '4335', name: 'ลาลีกา', fullName: 'ลาลีกา สเปน', season: '2026-2027' },
+    { id: '4332', name: 'เซเรียอา', fullName: 'กัลโช่ เซเรียอา อิตาลี', season: '2026-2027' },
+    { id: '4331', name: 'บุนเดสลีกา', fullName: 'บุนเดสลีกา เยอรมัน', season: '2026-2027' },
+    { id: '4334', name: 'ลีกเอิง', fullName: 'ลีกเอิง ฝรั่งเศส', season: '2026-2027' },
 ];
 
 // ดิกชันนารีแปลชื่อทีมเป็นภาษาไทย
@@ -102,29 +102,35 @@ export default function TableClient() {
 
     useEffect(() => {
         let isMounted = true;
-        setLoading(true);
-        setError(false);
 
-        fetch(`/api/table?l=${selectedLeague.id}&s=${selectedLeague.season}`)
-            .then((res) => res.json())
-            .then((data) => {
+        const fetchData = async () => {
+            if (isMounted) {
+                setLoading(true);
+                setError(false);
+            }
+            try {
+                const res = await fetch(`/api/table?l=${selectedLeague.id}&s=${selectedLeague.season}`);
+                const data = await res.json();
                 if (isMounted) {
                     if (data && data.table && Array.isArray(data.table)) {
                         setStandings(data.table);
                     } else {
                         setStandings([]);
                     }
-                    setLoading(false);
                 }
-            })
-            .catch((err) => {
+            } catch (err) {
                 console.error('Fetch standings error:', err);
                 if (isMounted) {
                     setError(true);
+                }
+            } finally {
+                if (isMounted) {
                     setLoading(false);
                 }
-            });
+            }
+        };
 
+        fetchData();
         return () => {
             isMounted = false;
         };

@@ -48,7 +48,7 @@ export default function MatchReminderNotifier() {
     if (visibleAlerts.length === 0) return null;
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full p-4 pointer-events-none">
+        <div className="fixed bottom-64 right-4 md:bottom-6 md:right-6 z-50 flex flex-col gap-3 max-w-sm w-full p-4 pointer-events-none">
             {visibleAlerts.map((match) => (
                 <div
                     key={match.id}

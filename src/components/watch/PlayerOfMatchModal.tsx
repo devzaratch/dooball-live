@@ -175,8 +175,10 @@ export default function PlayerOfMatchModal({ match, isOpen, onClose }: PlayerOfM
         if (typeof window === 'undefined') return;
         const voted = localStorage.getItem(storageKey);
         if (voted) {
-            setHasVoted(true);
-            setSelectedCandidate(voted);
+            queueMicrotask(() => {
+                setHasVoted(true);
+                setSelectedCandidate(voted);
+            });
         }
     }, [storageKey]);
 

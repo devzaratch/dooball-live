@@ -24,7 +24,7 @@ export async function checkStreamHealth(url: string, timeoutMs = 3000): Promise<
             status: response.status,
             latency,
         };
-    } catch (err: any) {
+    } catch {
         return {
             healthy: false,
             status: 0,

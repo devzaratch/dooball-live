@@ -19,7 +19,6 @@ export const viewport: Viewport = {
   themeColor: '#0f172a',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export const metadata: Metadata = {
@@ -33,7 +32,7 @@ export const metadata: Metadata = {
     'ເບິ່ງບານສົດ', 'ເບິ່ງບານອອນໄລນ໌', 'ຖ່າຍທອດສົດບານເຕະ', 'Dooball Live'
   ],
   authors: [{ name: 'Dooball Live Team' }],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3008'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://dooballlaos.com'),
   alternates: {
     canonical: '/',
     languages: {
@@ -45,14 +44,6 @@ export const metadata: Metadata = {
     title: 'ดูบอลสด - ดูบอลออนไลน์ฟรี คมชัดระดับ HD (ເບິ່ງບານສົດ)',
     description: 'รวมลิงก์ดูบอลสด ถ่ายทอดสดฟุตบอลครบทุกลีก อัปเดตลิงก์เร็วที่สุด รองรับไทยและลาว',
     siteName: 'Dooball Live',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Dooball Live - ดูบอลสดออนไลน์',
-      },
-    ],
     locale: 'th_TH',
     type: 'website',
   },
@@ -60,7 +51,6 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'ดูบอลสด - ดูบอลออนไลน์ฟรี คมชัดระดับ HD',
     description: 'รวมลิงก์ดูบอลสด ถ่ายทอดสดฟุตบอลครบทุกลีก อัปเดตลิงก์เร็วที่สุด',
-    images: ['/og-image.jpg'],
   },
   manifest: '/manifest.json',
   appleWebApp: {

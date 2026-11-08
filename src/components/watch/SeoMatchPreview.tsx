@@ -27,9 +27,9 @@ export default function SeoMatchPreview({ match }: SeoMatchPreviewProps) {
     const awayName = match.awayTeam?.name || 'ทีมเยือน';
     const leagueName = match.league?.name || 'ฟุตบอลสด';
     const kickoffTime = match.kickoffTime || '20:00';
-    const dateStr = (match as any).date_string || 'วันนี้';
+    const dateStr = match.date_string || match.date || 'วันนี้';
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3008';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooballlaos.com';
 
     // Breadcrumbs JSON-LD Schema
     const breadcrumbSchema = {
@@ -137,16 +137,15 @@ export default function SeoMatchPreview({ match }: SeoMatchPreviewProps) {
                         <div className="flex-1 p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
                             <span className="font-bold text-slate-200 truncate">{homeName}</span>
                             <div className="flex items-center gap-1 shrink-0">
-                                {((match as any).h2hHome || getTeamForm(homeName)).map((res: string, idx: number) => (
+                                {(match.h2hHome || getTeamForm(homeName)).map((res: string, idx: number) => (
                                     <span
                                         key={idx}
-                                        className={`w-5 h-5 rounded text-[10px] font-black flex items-center justify-center border ${
-                                            res === 'W'
-                                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                                                : res === 'D'
+                                        className={`w-5 h-5 rounded text-[10px] font-black flex items-center justify-center border ${res === 'W'
+                                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                            : res === 'D'
                                                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                                                 : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                                        }`}
+                                            }`}
                                     >
                                         {res}
                                     </span>
@@ -158,16 +157,15 @@ export default function SeoMatchPreview({ match }: SeoMatchPreviewProps) {
                         <div className="flex-1 p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
                             <span className="font-bold text-slate-200 truncate">{awayName}</span>
                             <div className="flex items-center gap-1 shrink-0">
-                                {((match as any).h2hAway || getTeamForm(awayName, 2)).map((res: string, idx: number) => (
+                                {(match.h2hAway || getTeamForm(awayName, 2)).map((res: string, idx: number) => (
                                     <span
                                         key={idx}
-                                        className={`w-5 h-5 rounded text-[10px] font-black flex items-center justify-center border ${
-                                            res === 'W'
-                                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                                                : res === 'D'
+                                        className={`w-5 h-5 rounded text-[10px] font-black flex items-center justify-center border ${res === 'W'
+                                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                            : res === 'D'
                                                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                                                 : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                                        }`}
+                                            }`}
                                     >
                                         {res}
                                     </span>

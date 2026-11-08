@@ -27,9 +27,9 @@ function SidebarContent({
 
     useEffect(() => {
         if (urlSearch !== searchTerm) {
-            setSearchTerm(urlSearch);
+            queueMicrotask(() => setSearchTerm(urlSearch));
         }
-    }, [urlSearch]);
+    }, [urlSearch, searchTerm]);
 
     // กรองข้อมูลตามสถานะและคำค้นหา
     const filteredMatches = (matches || []).filter((m) => {

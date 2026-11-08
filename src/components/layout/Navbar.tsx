@@ -34,13 +34,15 @@ export default function Navbar() {
         try {
             const saved = localStorage.getItem('dooball_goal_alert_muted');
             if (saved !== null) {
-                setIsGoalSoundMuted(saved === 'true');
+                const isMuted = saved === 'true';
+                queueMicrotask(() => setIsGoalSoundMuted(isMuted));
             }
         } catch {}
 
-        const handleSoundSync = (e: any) => {
-            if (e.detail && typeof e.detail.isMuted === 'boolean') {
-                setIsGoalSoundMuted(e.detail.isMuted);
+        const handleSoundSync = (e: Event) => {
+            const detail = (e as CustomEvent<{ isMuted: boolean }>).detail;
+            if (detail && typeof detail.isMuted === 'boolean') {
+                setIsGoalSoundMuted(detail.isMuted);
             }
         };
 

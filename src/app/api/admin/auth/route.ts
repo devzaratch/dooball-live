@@ -2,15 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { checkRateLimit } from '@/lib/rateLimit';
 
-function getExpectedSessionToken(): string {
-    const secret = process.env.ADMIN_SECRET_KEY || 'dooball_fallback_secret_key_2026';
-    const password = process.env.ADMIN_PASSWORD || 'admin888!';
-    return crypto.createHmac('sha256', secret).update(password).digest('hex');
+function getAdminCredentials(): { secret: string; password: string } | null {
+    const secret = process.env.ADMIN_SECRET_KEY;
+    const password = process.env.ADMIN_PASSWORD;
+    if (!secret || !password) return null;
+    return { secret, password };
+}
+
+function getExpectedSessionToken(): string | null {
+    const creds = getAdminCredentials();
+    if (!creds) return null;
+    return crypto.createHmac('sha256', creds.secret).update(creds.password).digest('hex');
 }
 
 export async function GET(req: NextRequest) {
-    const sessionCookie = req.cookies.get('admin_session')?.value;
     const expected = getExpectedSessionToken();
+    if (!expected) {
+        return NextResponse.json({ authenticated: false });
+    }
+    const sessionCookie = req.cookies.get('admin_session')?.value;
 
     const isAuthenticated = Boolean(sessionCookie && sessionCookie === expected);
 
@@ -36,9 +46,15 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { password } = body;
 
-        const adminPassword = process.env.ADMIN_PASSWORD || 'admin888!';
+        const adminCreds = getAdminCredentials();
+        if (!adminCreds) {
+            return NextResponse.json(
+                { success: false, error: 'เซิร์ฟเวอร์ยังไม่ได้ตั้งค่ารหัสแอดมิน' },
+                { status: 500 }
+            );
+        }
 
-        if (!password || password !== adminPassword) {
+        if (!password || password !== adminCreds.password) {
             return NextResponse.json(
                 {
                     success: false,
@@ -50,6 +66,12 @@ export async function POST(req: NextRequest) {
 
         // Generate encrypted session token
         const sessionToken = getExpectedSessionToken();
+        if (!sessionToken) {
+            return NextResponse.json(
+                { success: false, error: 'เซิร์ฟเวอร์ยังไม่ได้ตั้งค่ารหัสแอดมิน' },
+                { status: 500 }
+            );
+        }
 
         const response = NextResponse.json({
             success: true,
@@ -66,8 +88,8 @@ export async function POST(req: NextRequest) {
         });
 
         return response;
-    } catch (err: any) {
-        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    } catch {
+        return NextResponse.json({ success: false, error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' }, { status: 500 });
     }
 }
 

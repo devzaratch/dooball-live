@@ -1,17 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useState, useEffect, useMemo } from 'react';
 import { useRealtimeMatches } from '@/hooks/useRealtimeMatches';
 import MatchSidebar from '@/components/layout/MatchSidebar';
 import VideoPlayer from '@/components/player/VideoPlayer';
 import StreamSelector, { StreamLink } from '@/components/player/StreamSelector';
-import LiveChat from '@/components/LiveChat';
-import AdBanner from '@/components/ads/AdBanner';
+import LiveChat from '@/components/chat/LiveChat';
 import SocialShareBar from '@/components/common/SocialShareBar';
 import LiveViewerBadge from '@/components/common/LiveViewerBadge';
-import ReactionPickerBar from '@/components/player/ReactionPickerBar';
-import { useLiveReactions, ReactionEvent } from '@/hooks/useLiveReactions';
 import { ref, onValue } from 'firebase/database';
 import { db } from '@/lib/firebase';
 import { getMatchRoomKey, cn } from '@/lib/utils';
@@ -29,35 +27,94 @@ const PlayerOfMatchModal = dynamic(() => import('@/components/watch/PlayerOfMatc
 type MobileTab = 'CHAT' | 'STATS' | 'MATCHES' | 'INFO';
 
 export default function WatchClient({ slug }: { slug: string }) {
-    const { matches = [] } = useRealtimeMatches([]) || {};
+    const { matches = [], loading } = useRealtimeMatches([]) || {};
     const [activeStream, setActiveStream] = useState<StreamLink | null>(null);
+    const [adminBackupStream, setAdminBackupStream] = useState<StreamLink | null>(null);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     const [isCardModalOpen, setIsCardModalOpen] = useState(false);
     const [isPotmModalOpen, setIsPotmModalOpen] = useState(false);
     const [mobileTab, setMobileTab] = useState<MobileTab>('CHAT');
 
     const decodedSlug = decodeURIComponent(slug);
-    const currentMatch = matches.find((m) => 
+    const foundMatch = matches.find((m) => 
         m.id === slug || 
         m.slug === slug || 
         m.id === decodedSlug || 
         m.slug === decodedSlug ||
         m.slug?.toLowerCase() === decodedSlug.toLowerCase()
-    ) || (matches.length > 0 ? matches[0] : null);
+    ) || null;
+    // ถ้าโหลดเสร็จแล้วยังหาไม่เจอ = ไม่มีแมตช์นี้จริง (ห้าม fallback ไปแมตช์แรก เพราะทำให้หน้า 404 ไม่เคยแสดง)
+    const currentMatch = foundMatch;
 
     const isLive = currentMatch?.status === 'LIVE';
+    // ไฮไลท์ของคู่นี้ (ถ้าไม่มีจะแสดงปุ่มพาไปหน้า /highlights แทน ไม่เอาคลิปอื่นมาปน)
+    const highlightVideoId = (currentMatch as { highlightVideoId?: string } | null)?.highlightVideoId || '';
+
+    // รับการอัปเดตช่องสำรองเฉพาะกิจแบบ Real-time จาก Admin Operations Room
+    useEffect(() => {
+        if (!currentMatch) return;
+        const matchRoomKey = getMatchRoomKey(currentMatch);
+        const backupRef = ref(db, `backup_streams/${matchRoomKey}`);
+        const unsubscribe = onValue(backupRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.url) {
+                setAdminBackupStream({
+                    id: data.id || 'server-backup-kqt',
+                    label: data.label || 'ช่องสำรอง 2',
+                    url: data.url,
+                    quality: data.quality || '1080p'
+                });
+            } else {
+                setAdminBackupStream(null);
+            }
+        });
+        return () => unsubscribe();
+    }, [currentMatch]);
+
+    // รวม streamLinks ปกติ และช่องสำรองสดจาก Admin
+    const effectiveStreamLinks = useMemo(() => {
+        const list = (currentMatch?.streamLinks ? [...currentMatch.streamLinks] : [])
+            .filter((s) => s && s.url && s.url !== '#' && s.url.trim() !== '');
+
+        // หากยังไม่มี streamLinks แต่มี currentMatch.link จากฐานข้อมูล ให้ใช้เป็นลิงก์หลักอัตโนมัติ
+        if (list.length === 0 && currentMatch?.link && currentMatch.link !== '#' && currentMatch.link.trim() !== '') {
+            list.push({
+                id: 'stream-main-fallback',
+                label: 'ลิงก์ถ่ายทอดสดหลัก (HD)',
+                url: currentMatch.link.trim(),
+                quality: '1080p',
+            });
+        }
+
+        if (adminBackupStream && adminBackupStream.url && adminBackupStream.url !== '#') {
+            const backupIndex = list.findIndex(
+                (s) => s.id === adminBackupStream.id || s.label.includes('สำรอง') || s.url.includes('domainkqt')
+            );
+            if (backupIndex !== -1) {
+                list[backupIndex] = adminBackupStream;
+            } else {
+                list.push(adminBackupStream);
+            }
+        }
+        return list;
+    }, [currentMatch, adminBackupStream]);
 
     useEffect(() => {
-        if (currentMatch?.streamLinks && currentMatch.streamLinks.length > 0) {
-            if (!activeStream || !currentMatch?.streamLinks?.some((s) => s.id === activeStream.id)) {
-                setActiveStream(currentMatch.streamLinks[0]);
+        if (effectiveStreamLinks && effectiveStreamLinks.length > 0) {
+            if (!activeStream || !effectiveStreamLinks.some((s) => s.id === activeStream.id)) {
+                queueMicrotask(() => setActiveStream(effectiveStreamLinks[0]));
+            } else {
+                const currentUpdated = effectiveStreamLinks.find((s) => s.id === activeStream.id);
+                if (currentUpdated && currentUpdated.url !== activeStream.url) {
+                    queueMicrotask(() => setActiveStream(currentUpdated));
+                }
             }
         } else {
-            setActiveStream(null);
+            queueMicrotask(() => setActiveStream(null));
         }
-    }, [currentMatch, activeStream]);
+    }, [effectiveStreamLinks, activeStream]);
 
-    // รับการอัปเดตลิงก์สตรีมด่วนแบบ Real-time จาก Admin Operations Room
+    // รับการอัปเดตลิงก์สตรีมด่วนแบบ Real-time จาก Admin Operations Room (กรณีแทนที่ลิงก์เดิม)
     useEffect(() => {
         if (!currentMatch) return;
         const matchRoomKey = getMatchRoomKey(currentMatch);
@@ -76,12 +133,12 @@ export default function WatchClient({ slug }: { slug: string }) {
     }, [currentMatch, activeStream]);
 
     const handleAutoFallback = () => {
-        if (!currentMatch?.streamLinks || currentMatch.streamLinks.length <= 1) return;
-        const currentIndex = currentMatch.streamLinks.findIndex((s) => s.id === activeStream?.id);
-        const nextIndex = (currentIndex + 1) % currentMatch.streamLinks.length;
-        if (nextIndex !== currentIndex && currentMatch.streamLinks[nextIndex]) {
+        if (!effectiveStreamLinks || effectiveStreamLinks.length <= 1) return;
+        const currentIndex = effectiveStreamLinks.findIndex((s) => s.id === activeStream?.id);
+        const nextIndex = (currentIndex + 1) % effectiveStreamLinks.length;
+        if (nextIndex !== currentIndex && effectiveStreamLinks[nextIndex]) {
             console.log(`Auto-fallback switching stream to Server ${nextIndex + 1}`);
-            setActiveStream(currentMatch.streamLinks[nextIndex]);
+            setActiveStream(effectiveStreamLinks[nextIndex]);
         }
     };
 
@@ -186,9 +243,9 @@ export default function WatchClient({ slug }: { slug: string }) {
                         />
 
                         {/* Stream Selector */}
-                        {currentMatch.streamLinks && currentMatch.streamLinks.length > 0 && (
+                        {effectiveStreamLinks && effectiveStreamLinks.length > 0 && (
                             <StreamSelector
-                                streams={currentMatch.streamLinks}
+                                streams={effectiveStreamLinks}
                                 activeStreamId={activeStream?.id}
                                 onSelectStream={(stream) => setActiveStream(stream)}
                                 onReportStream={() => setIsReportModalOpen(true)}
@@ -319,13 +376,23 @@ export default function WatchClient({ slug }: { slug: string }) {
                                             </div>
                                         </div>
                                         <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10">
-                                            <iframe
-                                                src={`https://www.youtube.com/embed/${(currentMatch as any).highlightVideoId || 'b3Ge5NUbI2o'}?rel=0`}
-                                                title={`ไฮไลท์ ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name}`}
-                                                className="w-full h-full border-0"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                            />
+                                            {highlightVideoId ? (
+                                                <iframe
+                                                    src={`https://www.youtube.com/embed/${highlightVideoId}?rel=0`}
+                                                    title={`ไฮไลท์ ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name}`}
+                                                    className="w-full h-full border-0"
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                    allowFullScreen
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-center px-4">
+                                                    <Film className="w-8 h-8 text-slate-600" />
+                                                    <p className="text-xs text-slate-400">คู่นี้ยังไม่มีคลิปไฮไลท์</p>
+                                                    <Link href="/highlights" className="px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400 text-xs font-bold hover:bg-rose-500/30 transition-colors">
+                                                        ดูไฮไลท์คู่อื่น
+                                                    </Link>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -366,13 +433,23 @@ export default function WatchClient({ slug }: { slug: string }) {
                                 </div>
 
                                 <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner">
-                                    <iframe
-                                        src={`https://www.youtube.com/embed/${(currentMatch as any).highlightVideoId || 'b3Ge5NUbI2o'}?rel=0`}
-                                        title={`ไฮไลท์ ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name}`}
-                                        className="w-full h-full border-0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
+                                    {highlightVideoId ? (
+                                        <iframe
+                                            src={`https://www.youtube.com/embed/${highlightVideoId}?rel=0`}
+                                            title={`ไฮไลท์ ${currentMatch.homeTeam?.name} พบ ${currentMatch.awayTeam?.name}`}
+                                            className="w-full h-full border-0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowFullScreen
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-center px-4">
+                                            <Film className="w-8 h-8 text-slate-600" />
+                                            <p className="text-xs text-slate-400">คู่นี้ยังไม่มีคลิปไฮไลท์</p>
+                                            <Link href="/highlights" className="px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400 text-xs font-bold hover:bg-rose-500/30 transition-colors">
+                                                ดูไฮไลท์คู่อื่น
+                                            </Link>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -380,11 +457,20 @@ export default function WatchClient({ slug }: { slug: string }) {
                             <SeoMatchPreview match={currentMatch} />
                         </div>
                     </>
-                ) : (
+                ) : loading ? (
                     <div className="flex flex-col items-center justify-center py-24 bg-[#0B0F17]/60 border border-white/10 rounded-2xl backdrop-blur-xl text-center px-4">
                         <ShieldAlert className="w-12 h-12 text-slate-500 mb-3 animate-bounce" />
-                        <h3 className="text-base font-bold text-slate-200 mb-1">ไม่พบข้อมูลการแข่งขัน</h3>
-                        <p className="text-xs text-slate-400 max-w-sm">กำลังโหลดข้อมูล...</p>
+                        <h3 className="text-base font-bold text-slate-200 mb-1">กำลังโหลดข้อมูลการแข่งขัน...</h3>
+                        <p className="text-xs text-slate-400 max-w-sm">กรุณารอสักครู่</p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-24 bg-[#0B0F17]/60 border border-white/10 rounded-2xl backdrop-blur-xl text-center px-4">
+                        <ShieldAlert className="w-12 h-12 text-slate-500 mb-3" />
+                        <h3 className="text-base font-bold text-slate-200 mb-1">ไม่พบคู่แข่งขันนี้ (404)</h3>
+                        <p className="text-xs text-slate-400 max-w-sm mb-4">ลิงก์อาจหมดอายุหรือแมตช์ถูกลบออกแล้ว</p>
+                        <Link href="/" className="px-5 py-2.5 rounded-xl bg-[#E5B842] text-black text-xs font-bold hover:bg-[#f3c853] transition-colors">
+                            กลับหน้าแรก
+                        </Link>
                     </div>
                 )}
             </div>

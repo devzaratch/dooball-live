@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Trophy, Flame, Target, Sparkles, Award, User, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -107,8 +107,50 @@ interface TopScorersTableProps {
 
 export default function TopScorersTable({ leagueId, leagueName }: TopScorersTableProps) {
     const [subTab, setSubTab] = useState<'SCORERS' | 'ASSISTS'>('SCORERS');
+    const [liveSource, setLiveSource] = useState<'live' | 'sample'>('sample');
+    const [liveScorers, setLiveScorers] = useState<PlayerStat[]>([]);
+    const [liveAssists, setLiveAssists] = useState<PlayerStat[]>([]);
 
-    const leagueData = TOP_SCORERS_BY_LEAGUE[leagueId] || TOP_SCORERS_BY_LEAGUE['4328'];
+    // ดึงข้อมูลจริงจาก Firebase ถ้าแอดมินเคยอัปเดตไว้ (ไม่มี -> ใช้ข้อมูลตัวอย่างด้านล่าง)
+    useEffect(() => {
+        let cancelled = false;
+        fetch(`/api/scorers?l=${leagueId}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (cancelled || !data?.success) return;
+                const map = (arr: unknown[]): PlayerStat[] =>
+                    (Array.isArray(arr) ? arr : []).filter(Boolean).map((p, idx) => {
+                        const row = p as Record<string, unknown>;
+                        return {
+                            rank: idx + 1,
+                            name: String(row.name || row.strPlayer || ''),
+                            nameTh: String(row.nameTh || row.name || row.strPlayer || ''),
+                            team: String(row.team || row.strTeam || ''),
+                            teamLogo: row.teamLogo ? String(row.teamLogo) : undefined,
+                            goals: Number(row.goals || 0) || 0,
+                            assists: Number(row.assists || 0) || 0,
+                            penalties: Number(row.penalties || 0) || 0,
+                            matches: Number(row.matches || 0) || 0,
+                            photoUrl: row.photoUrl ? String(row.photoUrl) : undefined,
+                        };
+                    });
+                if (data.source === 'live' && Array.isArray(data.scorers) && data.scorers.length > 0) {
+                    setLiveScorers(map(data.scorers));
+                    setLiveAssists(map(data.assists));
+                    setLiveSource('live');
+                }
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, [leagueId]);
+
+    const fallbackData = TOP_SCORERS_BY_LEAGUE[leagueId] || TOP_SCORERS_BY_LEAGUE['4328'];
+    const leagueData =
+        liveSource === 'live' && liveScorers.length > 0
+            ? { scorers: liveScorers, assists: liveAssists.length > 0 ? liveAssists : liveScorers }
+            : fallbackData;
     const list = subTab === 'SCORERS' ? leagueData.scorers : leagueData.assists;
 
     return (
@@ -124,7 +166,11 @@ export default function TopScorersTable({ leagueId, leagueName }: TopScorersTabl
                             {subTab === 'SCORERS' ? 'อันดับดาวซัลโวสูงสุด (Top Scorers)' : 'อันดับจอมแอสซิสต์ (Top Assists)'}
                             <span className="text-[#E5B842]">{leagueName}</span>
                         </h3>
-                        <p className="text-xs text-slate-400">อัปเดตสถิติผู้ทำประตูและจ่ายบอลฤดูกาล 2024-2025</p>
+                        <p className="text-xs text-slate-400">
+                            {liveSource === 'live'
+                                ? 'อัปเดตอัตโนมัติจากฐานข้อมูลล่าสุด'
+                                : 'ข้อมูลตัวอย่าง • แอดมินอัปเดตจริงได้ทางหลังบ้าน'}
+                        </p>
                     </div>
                 </div>
 

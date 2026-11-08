@@ -65,7 +65,9 @@ export function useLiveViewers(matchId?: string, isLive: boolean = true) {
             };
         } catch (error) {
             console.error('Live Viewers Hook Error:', error);
-            setDisplayCount(isLive ? baseViewers : 150);
+            queueMicrotask(() => {
+                setDisplayCount(isLive ? baseViewers : 150);
+            });
         }
     }, [matchId, isLive]);
 

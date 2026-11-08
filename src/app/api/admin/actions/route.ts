@@ -2,11 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { getMatchRoomKey } from '@/lib/utils';
+import { isUrlAllowed } from '@/lib/safeFetch';
+import type { PlayerStat } from '@/components/table/TopScorersTable';
+
+interface SaveScorersBody {
+    action: 'save_scorers';
+    leagueId: string;
+    scorers: PlayerStat[];
+}
+
+function isValidHttpUrl(raw: unknown, maxLen = 2000): boolean {
+    if (typeof raw !== 'string') return false;
+    const t = raw.trim();
+    if (!t || t.length > maxLen) return false;
+    return isUrlAllowed(t);
+}
+
+function cleanText(raw: unknown, maxLen: number): string | null {
+    if (typeof raw !== 'string') return null;
+    const t = raw.trim();
+    if (!t || t.length > maxLen) return null;
+    return t;
+}
 
 function isAuthorized(req: NextRequest): boolean {
+    const secret = process.env.ADMIN_SECRET_KEY;
+    const password = process.env.ADMIN_PASSWORD;
+    if (!secret || !password) return false;
     const sessionCookie = req.cookies.get('admin_session')?.value;
-    const secret = process.env.ADMIN_SECRET_KEY || 'dooball_fallback_secret_key_2026';
-    const password = process.env.ADMIN_PASSWORD || 'admin888!';
     const expected = crypto.createHmac('sha256', secret).update(password).digest('hex');
     return Boolean(sessionCookie && sessionCookie === expected);
 }
@@ -35,6 +58,9 @@ export async function POST(req: NextRequest) {
                 if (!roomKey || !streamId || !newUrl) {
                     return NextResponse.json({ success: false, error: 'Missing parameters' }, { status: 400 });
                 }
+                if (!isValidHttpUrl(newUrl)) {
+                    return NextResponse.json({ success: false, error: 'ลิงก์สตรีมไม่ถูกต้อง (ต้องเป็น http/https)' }, { status: 400 });
+                }
                 const trimmedUrl = String(newUrl).trim();
                 // 1. Update stream_overrides
                 const overrideRef = adminDb.ref(`stream_overrides/${roomKey}/${streamId}`);
@@ -47,6 +73,41 @@ export async function POST(req: NextRequest) {
                 await summaryRef.set(trimmedUrl);
 
                 return NextResponse.json({ success: true, message: 'เปลี่ยนลิงก์สตรีมด่วนสำเร็จ' });
+            }
+
+            case 'save_backup_stream': {
+                if (!roomKey) {
+                    return NextResponse.json({ success: false, error: 'Missing matchId' }, { status: 400 });
+                }
+                const backupRef = adminDb.ref(`backup_streams/${roomKey}`);
+                const trimmedUrl = String(newUrl || '').trim();
+
+                if (!trimmedUrl) {
+                    await backupRef.remove();
+                    return NextResponse.json({ success: true, message: 'ลบลิงก์ช่องสำรองเรียบร้อย' });
+                }
+                if (!isValidHttpUrl(trimmedUrl)) {
+                    return NextResponse.json({ success: false, error: 'ลิงก์ช่องสำรองไม่ถูกต้อง (ต้องเป็น http/https)' }, { status: 400 });
+                }
+
+                await backupRef.set({
+                    id: 'server-backup-kqt',
+                    label: body.label || 'ช่องสำรอง 2',
+                    url: trimmedUrl,
+                    quality: body.quality || '1080p',
+                    updatedAt: Date.now(),
+                });
+
+                return NextResponse.json({ success: true, message: 'บันทึกลิงก์ช่องสำรองสำเร็จ' });
+            }
+
+            case 'delete_backup_stream': {
+                if (!roomKey) {
+                    return NextResponse.json({ success: false, error: 'Missing matchId' }, { status: 400 });
+                }
+                const backupRef = adminDb.ref(`backup_streams/${roomKey}`);
+                await backupRef.remove();
+                return NextResponse.json({ success: true, message: 'ลบลิงก์ช่องสำรองเรียบร้อย' });
             }
 
             case 'delete_chat': {
@@ -71,9 +132,13 @@ export async function POST(req: NextRequest) {
                 if (!roomKey || !noticeText) {
                     return NextResponse.json({ success: false, error: 'Missing matchId or noticeText' }, { status: 400 });
                 }
+                const cleanNotice = cleanText(noticeText, 500);
+                if (!cleanNotice) {
+                    return NextResponse.json({ success: false, error: 'ข้อความประกาศยาวเกินไป (สูงสุด 500 ตัวอักษร)' }, { status: 400 });
+                }
                 const noticeRef = adminDb.ref(`chat_notices/${roomKey}`);
                 await noticeRef.set({
-                    text: String(noticeText).trim(),
+                    text: cleanNotice,
                     updatedAt: Date.now(),
                 });
                 return NextResponse.json({ success: true, message: 'ปักหมุดประกาศสำเร็จ' });
@@ -92,10 +157,14 @@ export async function POST(req: NextRequest) {
                 if (!roomKey || !broadcastText) {
                     return NextResponse.json({ success: false, error: 'Missing matchId or broadcastText' }, { status: 400 });
                 }
+                const cleanBroadcast = cleanText(broadcastText, 1000);
+                if (!cleanBroadcast) {
+                    return NextResponse.json({ success: false, error: 'ข้อความยาวเกินไป (สูงสุด 1000 ตัวอักษร)' }, { status: 400 });
+                }
                 const chatRef = adminDb.ref(`chats/${roomKey}`);
                 await chatRef.push({
                     user: 'แอดมินทีมงาน',
-                    text: String(broadcastText).trim(),
+                    text: cleanBroadcast,
                     timestamp: Date.now(),
                     isAdmin: true,
                     role: 'admin',
@@ -107,6 +176,9 @@ export async function POST(req: NextRequest) {
                 const { banner } = body;
                 if (!banner || !banner.id || !banner.image || !banner.url) {
                     return NextResponse.json({ success: false, error: 'Missing banner fields (id, image, url)' }, { status: 400 });
+                }
+                if (!isValidHttpUrl(banner.url) || !isValidHttpUrl(banner.image)) {
+                    return NextResponse.json({ success: false, error: 'ลิงก์แบนเนอร์ไม่ถูกต้อง (ต้องเป็น http/https)' }, { status: 400 });
                 }
                 const bannerId = String(banner.id).replace(/[.$#[\]/]/g, '_').trim();
                 const bannerRef = adminDb.ref(`site_banners/${bannerId}`);
@@ -175,11 +247,80 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ success: true, message: 'ปลดแบนผู้ใช้สำเร็จ' });
             }
 
+            case 'check_stream_health': {
+                const { url: checkUrl } = body;
+                if (!checkUrl) {
+                    return NextResponse.json({ success: false, error: 'Missing stream URL' }, { status: 400 });
+                }
+                const target = String(checkUrl).trim();
+                if (!isUrlAllowed(target)) {
+                    return NextResponse.json({ success: false, error: 'URL ไม่ถูกต้องหรือไม่ได้รับอนุญาต' }, { status: 400 });
+                }
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                    const testRes = await fetch(target, {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        },
+                        signal: controller.signal,
+                        cache: 'no-store',
+                    });
+                    clearTimeout(timeoutId);
+
+                    const isOnline = testRes.ok || testRes.status === 200 || testRes.status === 206;
+                    return NextResponse.json({
+                        success: true,
+                        isOnline,
+                        status: testRes.status,
+                        statusText: testRes.statusText,
+                    });
+                } catch (err: unknown) {
+                    const errorMsg = err instanceof Error ? err.message : 'Connection timeout or CORS/Network error';
+                    return NextResponse.json({
+                        success: true,
+                        isOnline: false,
+                        error: errorMsg,
+                    });
+                }
+            }
+
+            case 'save_scorers': {
+                const { leagueId, scorers } = body as SaveScorersBody;
+                if (!leagueId) {
+                    return NextResponse.json({ success: false, error: 'Missing leagueId' }, { status: 400 });
+                }
+                if (!Array.isArray(scorers)) {
+                    return NextResponse.json({ success: false, error: 'scorers must be an array' }, { status: 400 });
+                }
+                // Validate leagueId format
+                if (!/^[0-9]{3,6}$/.test(leagueId)) {
+                    return NextResponse.json({ success: false, error: 'Invalid leagueId format' }, { status: 400 });
+                }
+                // Validate scorers data - use PlayerStat interface
+                const cleanedScorers: PlayerStat[] = scorers.map((s) => ({
+                    rank: Number(s.rank) || 0,
+                    name: String(s.name || '').trim() || `ผู้เล่นอันดับ ${s.rank}`,
+                    nameTh: String(s.nameTh || '').trim() || String(s.name || ''),
+                    team: String(s.team || '').trim() || 'ไม่ระบุทีม',
+                    goals: Number(s.goals) || 0,
+                    assists: Number(s.assists) || 0,
+                    penalties: Number(s.penalties) || 0,
+                    matches: Number(s.matches) || 0,
+                    photoUrl: String(s.photoUrl || '').trim() || undefined,
+                }));
+                const scorerRef = adminDb.ref(`top_scorers/${leagueId}`);
+                await scorerRef.set({ scorers: cleanedScorers, updatedAt: Date.now() });
+                return NextResponse.json({ success: true, message: 'บันทุดอันดับดาวซัลโวสำเร็จ', leagueId, count: cleanedScorers.length });
+            }
+
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
         }
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('API admin action error:', err);
-        return NextResponse.json({ success: false, error: err?.message || 'Server error' }, { status: 500 });
+        return NextResponse.json({ success: false, error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' }, { status: 500 });
     }
 }

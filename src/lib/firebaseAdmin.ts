@@ -24,31 +24,21 @@ function getServiceAccount() {
             const raw = fs.readFileSync(keyPath, 'utf-8');
             return JSON.parse(raw);
         }
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const localKey = require('../../serviceAccountKey.json');
-        return localKey;
     } catch {
-        console.warn('serviceAccountKey.json not found and FIREBASE_SERVICE_ACCOUNT_KEY env var missing.');
-        return null;
+        // ignore
     }
+    console.warn('serviceAccountKey.json not found and FIREBASE_SERVICE_ACCOUNT_KEY env var missing.');
+    return null;
 }
 
-// Ensure we only initialize the app once, especially in Next.js dev mode (hot reloading)
-if (getApps().length === 0) {
-    const serviceAccount = getServiceAccount();
-    const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://football-888-b9a7e-default-rtdb.asia-southeast1.firebasedatabase.app";
+const ADMIN_APP_NAME = 'dooball-admin-app';
+const serviceAccount = getServiceAccount();
+const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://football-888-b9a7e-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-    if (serviceAccount) {
-        initializeApp({
-            credential: cert(serviceAccount),
-            databaseURL
-        });
-    } else {
-        initializeApp({
-            databaseURL
-        });
-    }
-}
+const adminApp = getApps().find(app => app.name === ADMIN_APP_NAME) || initializeApp({
+    credential: serviceAccount ? cert(serviceAccount) : undefined,
+    databaseURL
+}, ADMIN_APP_NAME);
 
-export const adminDb = getDatabase();
+export const adminDb = getDatabase(adminApp);
 

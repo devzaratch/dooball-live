@@ -1,24 +1,17 @@
 {
-  "name": "Dooball Live - ดูบอลสดออนไลน์",
-  "short_name": "Dooball Live",
-  "description": "รวมลิงก์ดูบอลสด ถ่ายทอดสดฟุตบอลครบทุกลีก พรีเมียร์ลีก ยูฟ่า แชมเปียนส์ลีก คมชัด HD",
+  "name": "ดูบอลสด - Dooball Live Football",
+  "short_name": "ดูบอลสด",
+  "description": "เว็บดูบอลสด ถ่ายทอดสดฟุตบอลความคมชัดสูง ฟรีทุกคู่ ตารางบอลสด ผลบอลสด 24 ชม.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#0B0F17",
-  "theme_color": "#E5B842",
+  "background_color": "#090d16",
+  "theme_color": "#0f172a",
+  "orientation": "any",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
     }
   ]
 }

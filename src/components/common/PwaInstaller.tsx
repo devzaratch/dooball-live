@@ -1,10 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Smartphone, Download, X, Check } from 'lucide-react';
+import { Smartphone, Download, X } from 'lucide-react';
+
+interface BeforeInstallPromptEvent extends Event {
+    prompt(): Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 export default function PwaInstaller() {
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const [showBanner, setShowBanner] = useState(false);
     const [isInstalled, setIsInstalled] = useState(false);
 
@@ -18,9 +23,9 @@ export default function PwaInstaller() {
         }
 
         // Listen for PWA Install Prompt
-        const handleBeforeInstallPrompt = (e: any) => {
+        const handleBeforeInstallPrompt = (e: Event) => {
             e.preventDefault();
-            setDeferredPrompt(e);
+            setDeferredPrompt(e as BeforeInstallPromptEvent);
 
             // Check if user previously dismissed banner in this session
             const dismissed = sessionStorage.getItem('pwa_banner_dismissed');
@@ -32,8 +37,8 @@ export default function PwaInstaller() {
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
         // Check if already running in standalone PWA mode
-        if (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone) {
-            setIsInstalled(true);
+        if (window.matchMedia('(display-mode: standalone)').matches || ('standalone' in navigator && (navigator as { standalone?: boolean }).standalone)) {
+            queueMicrotask(() => setIsInstalled(true));
         }
 
         return () => {
@@ -63,7 +68,7 @@ export default function PwaInstaller() {
     if (!showBanner || isInstalled) return null;
 
     return (
-        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-40 bg-[#0B0F17]/95 border-2 border-[#E5B842]/80 rounded-2xl p-4 shadow-[0_0_30px_rgba(229,184,66,0.3)] backdrop-blur-xl animate-[slideIn_0.4s_ease-out] flex items-center justify-between gap-3">
+        <div className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-40 bg-[#0B0F17]/95 border-2 border-[#E5B842]/80 rounded-2xl p-4 shadow-[0_0_30px_rgba(229,184,66,0.3)] backdrop-blur-xl animate-[slideIn_0.4s_ease-out] flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E5B842] to-amber-600 p-0.5 shrink-0 shadow-md">
                     <div className="w-full h-full bg-black/80 rounded-[10px] flex items-center justify-center">
