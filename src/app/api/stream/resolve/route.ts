@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
         // 2. Fetch the fixture HTML page (rewrite dooballlaos.com → dooball99.top)
         let resolvedTargetUrl = targetUrl;
-        if (resolvedTargetUrl.includes('dooball-live-p6mk.vercel.app')) {
+        if (resolvedTargetUrl.includes('dooballlaos.com')) {
             const idMatch = resolvedTargetUrl.match(/(\d{7,})/);
             if (idMatch) {
                 resolvedTargetUrl = `https://dooball99.top/fixtures/${idMatch[1]}`;
