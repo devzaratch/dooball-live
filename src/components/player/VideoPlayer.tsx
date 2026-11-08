@@ -128,8 +128,13 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     const [resolvedFromPageUrl, setResolvedFromPageUrl] = useState<string | null>(null);
 
     // ช่วยแกะ src ออกจาก string กรณีที่ Backend ส่งมาเป็น <iframe src="...">
+    // และป้องกันการ resolve อีก (ถ้า URL เป็น resolve endpoint ของเราเอง)
     const getCleanUrl = useCallback((url?: string) => {
         if (!url) return '';
+        // ถ้า URL เป็น resolve endpoint ของเราเอง (ป้องกันการ resolve ซ้ำ), ให้ส่งมาเป็น null
+        if (url.includes('/api/stream/resolve')) {
+            return '';
+        }
         if (url.includes('<iframe')) {
             const match = url.match(/src=["']([^"']+)["']/);
             return match ? match[1] : url;
@@ -143,9 +148,12 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     useEffect(() => {
         if (!rawCleanUrl || rawCleanUrl === '#') {
             queueMicrotask(() => setResolvedFromPageUrl(null));
+            setIsResolvingStream(false);
             return;
         }
 
+        // ป้องกันการ resolve endpoint ของเราเอง (getCleanUrl จะ return '' แล้ว จึงข้ามไป)
+        // แต่ถ้ายังคงเป็น URL fixture จริง ให้ดึง M3U8 จาก HTML
         const isFixturePage = rawCleanUrl.includes('dooball99.top/fixtures/') || rawCleanUrl.includes('/fixtures/');
         if (isFixturePage) {
             let isCancelled = false;

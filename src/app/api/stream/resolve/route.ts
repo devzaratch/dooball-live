@@ -54,25 +54,68 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        // 2. Fetch the fixture HTML page (rewrite dooballlaos.com → dooball99.top)
+        // 2. Fetch the fixture HTML page (dooballlaos.com → dooball99.top)
+        //    หมายเหตุ: dooball99.top บล็อก egress IP ของ Vercel → fetch ตรงอาจได้ 403/ว่าง
+        //    จึงมี fallback ผ่าน public HTML proxy (ออกจาก IP อื่น) ก่อนยอมแจ้งว่าไม่มี stream
         let resolvedTargetUrl = targetUrl;
+        // Reject ถ้า URL บังเอิญชี้กลับเข้า resolve endpoint ตัวเอง (กัน recursion)
+        if (resolvedTargetUrl.includes('/api/stream/resolve')) {
+            return NextResponse.json({ success: false, error: 'Invalid URL' }, { status: 400 });
+        }
         if (resolvedTargetUrl.includes('dooballlaos.com')) {
             const idMatch = resolvedTargetUrl.match(/(\d{7,})/);
             if (idMatch) {
                 resolvedTargetUrl = `https://dooball99.top/fixtures/${idMatch[1]}`;
             }
         }
-        let html = '';
-        const response = await fetchWithGuard(resolvedTargetUrl, {
-            headers: {
-                'User-Agent': UA,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Referer': 'https://dooball99.top/',
-            },
-        }, { timeoutMs: 8000 });
 
-        if (response.ok) {
-            html = await response.text();
+        const FIXTURE_HEADERS: Record<string, string> = {
+            'User-Agent': UA,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Referer': 'https://dooball99.top/',
+        };
+
+        let html = '';
+        let fetchTrace = '';
+
+        // 2a. ลอง fetch ตรงก่อน
+        try {
+            const response = await fetchWithGuard(resolvedTargetUrl, { headers: FIXTURE_HEADERS }, { timeoutMs: 8000 });
+            if (response.ok) {
+                html = await response.text();
+            } else {
+                fetchTrace = `direct:${response.status}`;
+            }
+        } catch (e: unknown) {
+            fetchTrace = `direct:${e instanceof Error ? e.message : 'network_error'}`;
+        }
+
+        // 2b. Fallback: ถ้า HTML ว่างหรือไม่มี POOL/m3u8 (โดนบล็อก/Cloudflare challenge) → ผ่าน HTML proxy
+        if (!html.includes('var POOL') && !html.includes('.m3u8')) {
+            const proxyList = [
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(resolvedTargetUrl)}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(resolvedTargetUrl)}`,
+            ];
+            for (const proxyUrl of proxyList) {
+                try {
+                    const fbRes = await fetchWithGuard(proxyUrl, {
+                        headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*' },
+                    }, { timeoutMs: 12000 });
+                    if (fbRes.ok) {
+                        const fbHtml = await fbRes.text();
+                        if (fbHtml.includes('var POOL') || fbHtml.includes('.m3u8')) {
+                            html = fbHtml;
+                            fetchTrace += ` →via:${new URL(proxyUrl).hostname}`;
+                            break;
+                        }
+                        fetchTrace += ` ${new URL(proxyUrl).hostname}:no_stream`;
+                    } else {
+                        fetchTrace += ` ${new URL(proxyUrl).hostname}:${fbRes.status}`;
+                    }
+                } catch (e: unknown) {
+                    fetchTrace += ` ${new URL(proxyUrl).hostname}ERR`;
+                }
+            }
         }
 
         // 3. Extract M3U8 stream URLs (direct in HTML)
@@ -136,7 +179,9 @@ export async function GET(req: NextRequest) {
         if (uniqueMatches.length === 0) {
             return NextResponse.json({
                 success: false,
-                error: 'No live stream (.m3u8) found on this page. Match might not have started yet.',
+                error: html
+                    ? 'No live stream (.m3u8) found on this page. Match might not have started yet.'
+                    : `Failed to fetch fixture page (${fetchTrace.trim() || 'unknown'})`,
             }, { status: 404 });
         }
 
