@@ -5,7 +5,7 @@ import MatchSeoContent from '@/components/seo/MatchSeoContent';
 
 import { adminDb } from '@/lib/firebaseAdmin';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooballlaos.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-live-p6mk.vercel.app';
 
 // Fetch match data from server-side using Firebase Admin SDK
 async function getMatch(slug: string) {

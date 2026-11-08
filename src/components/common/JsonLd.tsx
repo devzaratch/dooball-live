@@ -8,7 +8,7 @@ interface JsonLdProps {
 export default function JsonLd({ type = 'website', data }: JsonLdProps) {
     let schemaData: Record<string, unknown> | null = null;
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooballlaos.com';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-live-p6mk.vercel.app';
 
     if (type === 'website') {
         schemaData = {

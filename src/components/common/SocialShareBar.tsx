@@ -22,7 +22,7 @@ export default function SocialShareBar({
     const [copied, setCopied] = useState(false);
 
     // Get current URL if not provided
-    const shareUrl = typeof window !== 'undefined' ? (url || window.location.href) : (url || 'https://dooballlaos.com');
+    const shareUrl = typeof window !== 'undefined' ? (url || window.location.href) : (url || 'https://dooball-live-p6mk.vercel.app');
     const encodedUrl = encodeURIComponent(shareUrl);
     const encodedTitle = encodeURIComponent(title);
 

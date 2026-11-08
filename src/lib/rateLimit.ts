@@ -29,8 +29,8 @@ const MAX_TRACKED_IPS = 5000;               // เพดานกัน memory �
 
 // เว็บเราเอง (allowlist ตรง) — โดเมนย่อยอื่นครอบด้วย isAllowedSiteOrigin
 const ALLOWED_HOST_NAMES: string[] = [
-    'dooballlaos.com',
-    'www.dooballlaos.com',
+    'dooball-live-p6mk.vercel.app',
+    'www.dooball-live-p6mk.vercel.app',
 ];
 
 /**
@@ -126,7 +126,7 @@ export function isAllowedSiteOrigin(
         !!h && (
             getAllowedHosts().includes(h) ||
             selfHosts.includes(h) ||           // hostname ของตัวเซิร์ฟเวอร์เราเอง
-            h.endsWith('.dooballlaos.com')
+            h.endsWith('.dooball-live-p6mk.vercel.app')
         );
 
     if (!refHost && !orgHost) return false;    // ไม่มีทั้ง Referer และ Origin → บอท

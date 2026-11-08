@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     'ເບິ່ງບານສົດ', 'ເບິ່ງບານອອນໄລນ໌', 'ຖ່າຍທອດສົດບານເຕະ', 'Dooball Live'
   ],
   authors: [{ name: 'Dooball Live Team' }],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://dooballlaos.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-live-p6mk.vercel.app'),
   alternates: {
     canonical: '/',
     languages: {
