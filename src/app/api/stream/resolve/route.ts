@@ -54,46 +54,25 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        // 2. Fetch the fixture HTML page (dooballlaos.com อาจบล็อก Vercel IP → ต้องใส่ Referer)
-        const isDooballLaos = targetUrl.includes('dooballlaos.com');
-        const targetHost = new URL(targetUrl).hostname;
-        const response = await fetchWithGuard(targetUrl, {
+        // 2. Fetch the fixture HTML page (rewrite dooballlaos.com → dooball99.top)
+        let resolvedTargetUrl = targetUrl;
+        if (resolvedTargetUrl.includes('dooball-live-p6mk.vercel.app')) {
+            const idMatch = resolvedTargetUrl.match(/(\d{7,})/);
+            if (idMatch) {
+                resolvedTargetUrl = `https://dooball99.top/fixtures/${idMatch[1]}`;
+            }
+        }
+        let html = '';
+        const response = await fetchWithGuard(resolvedTargetUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+                'User-Agent': UA,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                ...(isDooballLaos ? { 'Referer': `https://${targetHost}/` } : {}),
+                'Referer': 'https://dooball99.top/',
             },
         }, { timeoutMs: 8000 });
 
-        // 2b. Fallback: dooballlaos.com ตาย/บล็อก → ดึงจาก dooball99.top แทน (ใช้ match ID เดียวกัน)
-        let html = '';
         if (response.ok) {
             html = await response.text();
-        } else if (isDooballLaos) {
-            const idMatch = targetUrl.match(/(\d{7,})/);
-            if (idMatch) {
-                const id = idMatch[1];
-                const fbUrl = `https://dooball99.top/fixtures/${id}`;
-                try {
-                    const fbResp = await fetchWithGuard(fbUrl, {
-                        headers: {
-                            'User-Agent': UA,
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                            'Referer': 'https://dooball99.top/',
-                        },
-                    }, { timeoutMs: 8000 });
-                    if (fbResp.ok) {
-                        html = await fbResp.text();
-                    }
-                } catch { /* dooball99 ก็อาจตายได้ */ }
-            }
-        }
-
-        if (!html) {
-            return NextResponse.json({
-                success: false,
-                error: `Failed to fetch page: ${response.status} ${response.statusText}`,
-            }, { status: response.status });
         }
 
         // 3. Extract M3U8 stream URLs (direct in HTML)
@@ -120,7 +99,7 @@ export async function GET(req: NextRequest) {
 
         // 3c. รูปแบบเก่า (เส้นทางสำรอง): POST /api/v1/fixture-channels/{id} → channels[].u
         const jwStreams: string[] = [];
-        const fixtureMatch = targetUrl.match(/dooball\d*\.top\/fixtures\/(\d+)/);
+        const fixtureMatch = resolvedTargetUrl.match(/dooball\d*\.top\/fixtures\/(\d+)/);
         if (fixtureMatch && inlineStreams.length === 0) {
             const id = fixtureMatch[1];
             try {
@@ -142,12 +121,12 @@ export async function GET(req: NextRequest) {
                                 try {
                                     const decoded = Buffer.from(c.u, 'base64').toString('binary').split('').reverse().join('');
                                     if (decoded) jwStreams.push(decoded);
-                                } catch {}
+                                } catch { }
                             }
                         });
                     }
                 }
-            } catch {}
+            } catch { }
         }
 
         // Combine and deduplicate
