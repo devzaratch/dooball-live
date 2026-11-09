@@ -27,6 +27,7 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     const hlsRef = useRef<Hls | null>(null);
     const mpegtsRef = useRef<mpegts.MSEPlayer | null>(null);
     const fatalErrorCountRef = useRef<number>(0);
+    const [streamRetryCount, setStreamRetryCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
     const [reloadKey, setReloadKey] = useState(0);
@@ -421,31 +422,43 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
 
                 hls.on(Hls.Events.ERROR, (_, data) => {
                     if (data.fatal) {
-                        fatalErrorCountRef.current += 1;
-                        if (fatalErrorCountRef.current >= 3) {
+                        if (streamRetryCount < 3) {
+                            // อัตโนมัติ retry ด้วย token ใหม่ (nocache=1) สูงสุด 3 ครั้ง
+                            setStreamRetryCount(prev => prev + 1);
+                            setReloadKey(prev => prev + 1);
+                            fatalErrorCountRef.current = 0;
+                            setIsLoading(true);
+                            return;
+                        }
+                        setHasError(true);
+                        setIsLoading(false);
+                        hls?.destroy();
+                        hlsRef.current = null;
+                        onAutoFallback?.();
+                        return;
+                    }
+
+                    switch (data.type) {
+                        case Hls.ErrorTypes.NETWORK_ERROR:
+                            hls?.startLoad();
+                            break;
+                        case Hls.ErrorTypes.MEDIA_ERROR:
+                            hls?.recoverMediaError();
+                            break;
+                        default:
+                            if (streamRetryCount < 3) {
+                                setStreamRetryCount(prev => prev + 1);
+                                setReloadKey(prev => prev + 1);
+                                fatalErrorCountRef.current = 0;
+                                setIsLoading(true);
+                                return;
+                            }
                             setHasError(true);
                             setIsLoading(false);
                             hls?.destroy();
                             hlsRef.current = null;
                             onAutoFallback?.();
-                            return;
-                        }
-
-                        switch (data.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                hls?.startLoad();
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                hls?.recoverMediaError();
-                                break;
-                            default:
-                                setHasError(true);
-                                setIsLoading(false);
-                                hls?.destroy();
-                                hlsRef.current = null;
-                                onAutoFallback?.();
-                                break;
-                        }
+                            break;
                     }
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
