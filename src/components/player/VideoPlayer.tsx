@@ -169,14 +169,12 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
                     if (!isCancelled) {
                         if (data && data.success && data.streamUrl) {
                             // ตั้งค่าการเล่นสตรีมแบบตรง: ถ้ามี rawM3u8Url → ให้ browser ผู้ชมโหลดเอง (ไม่ผ่าน proxy เพราะ host บล็อก IP Vercel)
-                            // แต่ถ้าไม่มี (บางกรณีต้องใช้ proxy เพราะกด anti-hotlink) ให้ใช้ proxy ตามเดิม
-                            if (data.rawM3u8Url) {
-                                setResolvedFromPageUrl(data.rawM3u8Url);
-                                setIsDirectResolve(true);
-                            } else {
-                                setResolvedFromPageUrl(data.streamUrl);
-                                setIsDirectResolve(false);
-                            }
+                            // สุ่มเลือกจาก candidates ทั้งหมด (ต้นทางใช้ 14 endpoint ซ้อนกันเป็น redundancy บางตัวอาจออฟไลน์)
+                            // แต่ถ้าไม่มี rawM3u8Url (บางกรณีต้องใช้ proxy เพราะกด anti-hotlink) ให้ใช้ proxy ตามเดิม
+                            const candidates: string[] = (data.allCandidates && data.allCandidates.length) ? data.allCandidates : [data.rawM3u8Url].filter(Boolean);
+                            const pickedUrl = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : data.streamUrl;
+                            setResolvedFromPageUrl(pickedUrl);
+                            setIsDirectResolve(Boolean(pickedUrl && data.rawM3u8Url));
                         } else {
                             // Fallback: ถ้าแกะ M3U8 ไม่ได้ให้ใช้ URL เดิม
                             setResolvedFromPageUrl(rawCleanUrl);
