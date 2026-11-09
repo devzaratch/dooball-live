@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const targetUrl = searchParams.get('url');
+    // nocache=1: บังคับ resolve สด (ใช้หลังกด Retry เพื่อได้ wmsAuthSign token ใหม่)
+    const noCache = searchParams.get('nocache') === '1';
 
     if (!targetUrl || !isUrlAllowed(targetUrl)) {
         return NextResponse.json({ success: false, error: 'Invalid or missing url parameter' }, { status: 400 });
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
 
         // 1. Check cache first
         const cached = resolveCache.get(targetUrl);
-        if (cached && cached.expiresAt > now) {
+        if (!noCache && cached && cached.expiresAt > now) {
             const proxyStreamUrl = `/api/proxy/stream?url=${encodeURIComponent(cached.m3u8Url)}`;
             return NextResponse.json({
                 success: true,
@@ -54,20 +56,15 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        // 2. Fetch the fixture HTML page (dooballlaos.com → dooball99.top)
-        //    หมายเหตุ: dooball99.top บล็อก egress IP ของ Vercel → fetch ตรงอาจได้ 403/ว่าง
-        //    จึงมี fallback ผ่าน public HTML proxy (ออกจาก IP อื่น) ก่อนยอมแจ้งว่าไม่มี stream
+        // 2. Fetch หน้า fixture (รองรับ dooballlaos.com / dooball99.top และมิเรอร์)
+        // Reject ถ้า URL ชี้กลับเข้า resolve endpoint ตัวเอง (กัน recursion)
         let resolvedTargetUrl = targetUrl;
-        // Reject ถ้า URL บังเอิญชี้กลับเข้า resolve endpoint ตัวเอง (กัน recursion)
         if (resolvedTargetUrl.includes('/api/stream/resolve')) {
             return NextResponse.json({ success: false, error: 'Invalid URL' }, { status: 400 });
         }
-        if (resolvedTargetUrl.includes('dooballlaos.com')) {
-            const idMatch = resolvedTargetUrl.match(/(\d{7,})/);
-            if (idMatch) {
-                resolvedTargetUrl = `https://dooball99.top/fixtures/${idMatch[1]}`;
-            }
-        }
+        // ปรับ fixture id: รองรับทั้ง /fixtures/{id} และรูปแบบเก่า dooballlaos.com/top:fixtures/{id}
+        const idMatch = resolvedTargetUrl.match(/[/ :]fixtures\/(\d+)/);
+        const fixtureId = idMatch ? idMatch[1] : '';
 
         const FIXTURE_HEADERS: Record<string, string> = {
             'User-Agent': UA,
@@ -78,16 +75,32 @@ export async function GET(req: NextRequest) {
         let html = '';
         let fetchTrace = '';
 
-        // 2a. ลอง fetch ตรงก่อน
-        try {
-            const response = await fetchWithGuard(resolvedTargetUrl, { headers: FIXTURE_HEADERS }, { timeoutMs: 8000 });
-            if (response.ok) {
-                html = await response.text();
-            } else {
-                fetchTrace = `direct:${response.status}`;
+        // 2a. dooball99.top บล็อก egress IP ของ Vercel (403) → วนลองเฉพาะมิเรอร์ที่ยังไม่บล็อก
+        //     (เป็นเว็บเดียวกันทั้ง 3 โดเมน: ข้างหน้าเผลอเดียวกัน id หน้า fixture ใช้ร่วมกัน, มี var POOL แบบเดียวกัน)
+        const relayHosts = fixtureId
+            ? ['dooball99.top', 'dooball66-hd.com', 'dooballonline.live']
+            : [];
+        const candidateUrls = fixtureId
+            ? relayHosts.map((host) => `https://${host}/fixtures/${fixtureId}`)
+            : [resolvedTargetUrl];
+
+        for (const candidateUrl of candidateUrls) {
+            try {
+                const response = await fetchWithGuard(candidateUrl, { headers: FIXTURE_HEADERS }, { timeoutMs: 8000 });
+                if (response.ok) {
+                    const text = await response.text();
+                    if (text.includes('var POOL') || text.includes('.m3u8')) {
+                        resolvedTargetUrl = candidateUrl;
+                        html = text;
+                        break;
+                    }
+                    fetchTrace += ` ${new URL(candidateUrl).hostname}:no_stream`;
+                } else {
+                    fetchTrace += ` ${new URL(candidateUrl).hostname}:${response.status}`;
+                }
+            } catch (e: unknown) {
+                fetchTrace += ` ${new URL(candidateUrl).hostname}:${e instanceof Error ? 'err' : 'err'}`;
             }
-        } catch (e: unknown) {
-            fetchTrace = `direct:${e instanceof Error ? e.message : 'network_error'}`;
         }
 
         // 2b. Fallback: ถ้า HTML ว่างหรือไม่มี POOL/m3u8 (โดนบล็อก/Cloudflare challenge) → ผ่าน HTML proxy
@@ -194,11 +207,13 @@ export async function GET(req: NextRequest) {
             }, { status: 404 });
         }
 
-        // Save to cache for 5 minutes
-        putCache(targetUrl, {
-            m3u8Url: rawM3u8Url,
-            expiresAt: now + 5 * 60 * 1000,
-        });
+        // Save to cache for 5 minutes (ข้ามถ้าเรียกแบบ noCache)
+        if (!noCache) {
+            putCache(targetUrl, {
+                m3u8Url: rawM3u8Url,
+                expiresAt: now + 5 * 60 * 1000,
+            });
+        }
 
         // Automatically wrap with our Stream Proxy for anti-hotlink referer bypass
         const proxyStreamUrl = `/api/proxy/stream?url=${encodeURIComponent(rawM3u8Url)}`;

@@ -126,6 +126,9 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
 
     const [isResolvingStream, setIsResolvingStream] = useState(false);
     const [resolvedFromPageUrl, setResolvedFromPageUrl] = useState<string | null>(null);
+    // เงื่อนไขเมื่อได้ m3u8 จาก resolve แบบตรง (POOL) → ให้ browser ผู้ชมโหลดสตรีมเอง
+    // (เหตุผล: host ของ stream บล็อก IP ของ Vercel ที่ทำหน้าที่เป็น proxy แต่เปิด CORS ให้ browser; ผ่าน browser/IP จากบ้านของผู้ชมไม่โดนบล็อกเชิงปริมาณ)
+    const [isDirectResolve, setIsDirectResolve] = useState(false);
 
     // ช่วยแกะ src ออกจาก string กรณีที่ Backend ส่งมาเป็น <iframe src="...">
     // และป้องกันการ resolve อีก (ถ้า URL เป็น resolve endpoint ของเราเอง)
@@ -159,21 +162,32 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
             let isCancelled = false;
             setIsResolvingStream(true);
 
-            fetch(`/api/stream/resolve?url=${encodeURIComponent(rawCleanUrl)}`)
+            // reloadKey: กด Retry → บังคับ resolve สด (+nocache) เพื่อได้ wmsAuthSign token ใหม่
+            fetch(`/api/stream/resolve?url=${encodeURIComponent(rawCleanUrl)}${reloadKey > 0 ? '&nocache=1' : ''}`)
                 .then((res) => res.json())
                 .then((data) => {
                     if (!isCancelled) {
                         if (data && data.success && data.streamUrl) {
-                            setResolvedFromPageUrl(data.streamUrl);
+                            // ตั้งค่าการเล่นสตรีมแบบตรง: ถ้ามี rawM3u8Url → ให้ browser ผู้ชมโหลดเอง (ไม่ผ่าน proxy เพราะ host บล็อก IP Vercel)
+                            // แต่ถ้าไม่มี (บางกรณีต้องใช้ proxy เพราะกด anti-hotlink) ให้ใช้ proxy ตามเดิม
+                            if (data.rawM3u8Url) {
+                                setResolvedFromPageUrl(data.rawM3u8Url);
+                                setIsDirectResolve(true);
+                            } else {
+                                setResolvedFromPageUrl(data.streamUrl);
+                                setIsDirectResolve(false);
+                            }
                         } else {
                             // Fallback: ถ้าแกะ M3U8 ไม่ได้ให้ใช้ URL เดิม
                             setResolvedFromPageUrl(rawCleanUrl);
+                            setIsDirectResolve(false);
                         }
                     }
                 })
                 .catch(() => {
                     if (!isCancelled) {
                         setResolvedFromPageUrl(rawCleanUrl);
+                        setIsDirectResolve(false);
                     }
                 })
                 .finally(() => {
@@ -187,16 +201,18 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
             };
         } else {
             setResolvedFromPageUrl(null);
+            setIsDirectResolve(false);
             setIsResolvingStream(false);
         }
-    }, [rawCleanUrl]);
+    }, [rawCleanUrl, reloadKey]);
 
     // เลือกระหว่าง URL ที่แกะเสร็จแล้ว หรือ URL ดั้งเดิม
     const cleanUrl = resolvedFromPageUrl || rawCleanUrl;
 
     // ตรวจสอบและแปลงลิงก์ที่ติด Anti-Hotlink (เช่น domainkqt.cc, .flv, หรือ *.sbs) ให้ผ่าน Stream Proxy อัตโนมัติ
     const rawIsFlv = cleanUrl.includes('.flv') && !cleanUrl.includes('.m3u8');
-    const resolvedUrl = (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream')
+    // isDirectResolve: ได้ m3u8 จาก resolve มาแบบตรงแล้ว → ให้เล่นตรงจาก browser (host เปิด CORS; ผ่าน proxy บน Vercel จะโดน upstream บล็อก 403 แทน)
+    const resolvedUrl = !isDirectResolve && (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream')
         ? `/api/proxy/stream?url=${encodeURIComponent(cleanUrl)}${rawIsFlv ? '&raw=true' : ''}`
         : cleanUrl;
 
