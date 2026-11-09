@@ -26,7 +26,7 @@ npm run dev          # http://localhost:3008
 | `NEXT_PUBLIC_FIREBASE_*` | ต่อ Firebase (มาจาก Firebase Console) |
 | `ADMIN_PASSWORD`, `ADMIN_SECRET_KEY` | รหัสเข้าหน้า `/admin` — **ไม่มี = เข้าหลังบ้านไม่ได้เลย** |
 | `FIREBASE_SERVICE_ACCOUNT_KEY` | กุญแจ Admin SDK (JSON หรือ Base64) — จำเป็นตอนขึ้นเซิร์ฟเวอร์จริง |
-| `NEXT_PUBLIC_SITE_URL` | โดเมนจริง `https://dooball-live-p6mk.vercel.app` (SEO/canonical) |
+| `NEXT_PUBLIC_SITE_URL` | โดเมนจริง `https://dooball-laos.vercel.app` (SEO/canonical) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_IDS` | ระบบสั่งงานผ่าน Telegram |
 
 > ⚠️ `serviceAccountKey.json` ถูกลบออกจากโปรเจคแล้ว ใช้ env `FIREBASE_SERVICE_ACCOUNT_KEY` อย่างเดียว
@@ -54,7 +54,7 @@ npm run telegram:notify # แจ้งเตือนอัตโนมัติ
    (ดูตัวแปรทั้งหมดใน [`.env.local.example`](./.env.local.example))
 2. ต้องมี `FIREBASE_SERVICE_ACCOUNT_KEY` (Base64 JSON) ใน Production Variables
 3. Vercel จะ build + deploy อัตโนมัติเมื่อ push ไป main
-4. ตั้ง Custom Domain ไป `dooball-live-p6mk.vercel.app` ใน Vercel Domain Settings
+4. ตั้ง Custom Domain ไป `dooball-laos.vercel.app` ใน Vercel Domain Settings
 
 ## โครงสร้างโปรเจค
 

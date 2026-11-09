@@ -29,7 +29,7 @@ export default function SeoMatchPreview({ match }: SeoMatchPreviewProps) {
     const kickoffTime = match.kickoffTime || '20:00';
     const dateStr = match.date_string || match.date || 'วันนี้';
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-live-p6mk.vercel.app';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-laos.vercel.app';
 
     // Breadcrumbs JSON-LD Schema
     const breadcrumbSchema = {

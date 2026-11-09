@@ -9,7 +9,7 @@ interface SportsEventSchemaProps {
     slug: string;
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-live-p6mk.vercel.app';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-laos.vercel.app';
 
 function buildStartDate(kickoffTime: string): string | undefined {
     // เวลาเตะอาจเป็น ISO string หรือ "20:00" — พยายามทั้งสองแบบ, ไม่ถูกต้องก็ไม่ใส่ฟิลด์นี้

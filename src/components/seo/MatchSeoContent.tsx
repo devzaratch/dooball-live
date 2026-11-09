@@ -12,7 +12,7 @@ interface MatchSeoContentProps {
     slug: string;
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-live-p6mk.vercel.app';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-laos.vercel.app';
 
 export default function MatchSeoContent({ match, slug }: MatchSeoContentProps) {
     const homeName = match.homeTeam?.name || 'ทีมเหย้า';

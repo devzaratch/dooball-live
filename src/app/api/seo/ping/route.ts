@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
     if (!rateCheck.allowed) {
         return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 });
     }
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-live-p6mk.vercel.app';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dooball-laos.vercel.app';
     const sitemapUrl = `${baseUrl}/sitemap.xml`;
 
     const results = {
