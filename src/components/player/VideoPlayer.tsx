@@ -211,7 +211,7 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     // ตรวจสอบและแปลงลิงก์ที่ติด Anti-Hotlink (เช่น domainkqt.cc, .flv, หรือ *.sbs) ให้ผ่าน Stream Proxy อัตโนมัติ
     const rawIsFlv = cleanUrl.includes('.flv') && !cleanUrl.includes('.m3u8');
     // isDirectResolve: ได้ m3u8 จาก resolve มาแบบตรงแล้ว → ให้เล่นตรงจาก browser (host เปิด CORS; ผ่าน proxy บน Vercel จะโดน upstream บล็อก 403 แทน)
-    const resolvedUrl = !isDirectResolve && (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream')
+    const resolvedUrl = (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream')
         ? `/api/proxy/stream?url=${encodeURIComponent(cleanUrl)}${rawIsFlv ? '&raw=true' : ''}`
         : cleanUrl;
 
