@@ -169,12 +169,16 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
                 .then((data) => {
                     if (!isCancelled) {
                         if (data && data.success && data.streamUrl) {
-                            // เสมอเล่นผ่าน /api/proxy/stream — host .sbs ตรวจ Referer (browser ตั้งเองไม่ได้ → เล่นตรงได้แน่ 403)
-                            // proxy ตั้ง Referer dooball99.top ให้ + egress ผ่าน relay ที่ upstream ไม่แบน
-                            // สุ่มเลือกจาก candidates ทั้งหมด (ต้นทางใช้ 14 endpoint ซ้อนกันเป็น redundancy บางตัวอาจออฟไลน์)
+                            // 🎯 ลำดับความชอบ:
+                            // 1) relayDirect (Cloudflare Worker) — browser ผู้ชมเรียก Worker ตรง (IP บ้านผ่าน, ฉีด Referer ให้)
+                            // 2) data.streamUrl (buildStreamUrl จาก resolve — ชี้ Worker/proxy ตาม config)
+                            // 3) /api/proxy/stream ของ server เอง — เผื่อ config relay ยังไม่ครบ
                             const candidates: string[] = (data.allCandidates && data.allCandidates.length) ? data.allCandidates : [data.rawM3u8Url].filter(Boolean);
                             const pickedUrl = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : data.rawM3u8Url || '';
-                            if (pickedUrl) {
+                            const DOOBALL_REFERER_ENC = 'https%3A%2F%2Fdooball99.top%2F';
+                            if (data.relayDirect && pickedUrl) {
+                                setResolvedFromPageUrl(`${data.relayDirect}?url=${encodeURIComponent(pickedUrl)}&referer=${DOOBALL_REFERER_ENC}`);
+                            } else if (pickedUrl) {
                                 setResolvedFromPageUrl(`/api/proxy/stream?url=${encodeURIComponent(pickedUrl)}`);
                             } else {
                                 setResolvedFromPageUrl(data.streamUrl);
@@ -215,7 +219,7 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     const rawIsFlv = cleanUrl.includes('.flv') && !cleanUrl.includes('.m3u8');
     // finalResolvedUrl: isDirectResolve=true → เล่นจาก browser โดยตรง (CORS); otherwise anti-hotlink → ผ่าน proxy
     const finalResolvedUrl = isDirectResolve ? cleanUrl :
-        (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream')
+        (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream') && !cleanUrl.includes('workers.dev/stream')
             ? `/api/proxy/stream?url=${encodeURIComponent(cleanUrl)}${rawIsFlv ? '&raw=true' : ''}`
             : cleanUrl;
     const resolvedUrl = finalResolvedUrl;

@@ -1,28 +1,55 @@
-// Dooball stream relay worker — ทางเข้าสตรีมที่ host .sbs ยอมรับ
-// ทำหน้าที่: ยิง upstream .sbs จาก IP ของ Cloudflare (ไม่ใช่ IP Vercel ที่โดนแบน)
-// และตั้ง Referer/Origin = dooball99.top ให้ครบ (upstream ตรวจ Referer → 403 ถ้าไม่มี/ผิด)
-//
-// ตั้งค่าผ่าน Variables (Workers & Pages > ตัว Worker > Settings > Variables):
-//   RELAY_KEY = รหัสกันชนตัวเทียม (ค่าเดียวกับ STREAM_RELAY_KEY ใน Vercel)
-//
-// ป้องกัน open-proxy abuse:
-//   - เฉพาะ path /stream
-//   - ขอสิทธิ์ด้วย header X-Relay-Key ที่ต้องตรง RELAY_KEY
-//   - เฉพาะ https + hostname ลงท้าย .sbs
+// Dooball stream relay worker (v2 — browser-direct mode)
+// วิธีใช้: browser ของเว็บเราเรียก Worker ตรง (IP บ้านผ่าน Cloudflare ✔ ไม่เจอกฎบล็อก datacenter)
+// สิทธิ์อนุญาต 2 ทาง:
+//   1) X-Relay-Key ตรงกับ RELAY_KEY (สำหรับ server เรียก เช่น Vercel ในอนาคต)
+//   2) Origin/Referer เป็นเว็บของเราเอง (dooball-laos.vercel.app) — browser ส่งอัตโนมัติ
+// ตัวต้นทางยังถูกจำกัด: เฉพาะ https + hostname ลงท้าย .sbs (ห้ามกลายเป็น open proxy)
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 const DEFAULT_REFERER = 'https://dooball99.top/';
 
+const SITE_ORIGINS = ['https://dooball-laos.vercel.app'];
 const PASS_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+
+function siteOriginOf(request) {
+	const origin = (request.headers.get('Origin') || '').trim();
+	let ok = SITE_ORIGINS.includes(origin);
+	if (!ok) {
+		const ref = request.headers.get('Referer') || '';
+		try {
+			if (ref && SITE_ORIGINS.includes(new URL(ref).origin)) ok = true;
+		} catch { /* ignore */ }
+	}
+	// ยอม localhost ระหว่างพัฒนาเท่านั้น
+	if (!ok && origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) ok = true;
+	return ok ? origin : '';
+}
 
 export default {
 	async fetch(request, env) {
 		const url = new URL(request.url);
+		// CORS preflight
+		if (request.method === 'OPTIONS') {
+			const siteOrigin = siteOriginOf(request);
+			if (!siteOrigin) return new Response(null, { status: 403 });
+			return new Response(null, {
+				status: 204,
+				headers: {
+					'Access-Control-Allow-Origin': siteOrigin,
+					'Access-Control-Allow-Methods': 'GET, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type, X-Relay-Key',
+					'Vary': 'Origin',
+				},
+			});
+		}
 		if (url.pathname !== '/stream') return new Response('Not found', { status: 404 });
 		if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
 
+		const siteOrigin = siteOriginOf(request);
 		const expectedKey = env.RELAY_KEY || '';
-		if (expectedKey && (request.headers.get('X-Relay-Key') || '') !== expectedKey) {
+		const givenKey = request.headers.get('X-Relay-Key') || '';
+		const keyOk = Boolean(expectedKey) && givenKey === expectedKey;
+		if (!keyOk && !siteOrigin) {
 			return new Response('Forbidden', { status: 403 });
 		}
 
@@ -53,6 +80,11 @@ export default {
 		for (const h of PASS_HEADERS) {
 			const v = upstream.headers.get(h);
 			if (v) out.set(h, v);
+		}
+		if (siteOrigin) {
+			out.set('Access-Control-Allow-Origin', siteOrigin);
+			out.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+			out.set('Vary', 'Origin');
 		}
 		out.set('Cache-Control', 'no-store');
 		return new Response(upstream.body, { status: upstream.status, headers: out });

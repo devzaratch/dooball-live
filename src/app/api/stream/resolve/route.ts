@@ -22,6 +22,25 @@ function putCache(key: string, item: CacheItem) {
     resolveCache.set(key, item);
 }
 
+// 🎯 streamUrl ที่เล่นได้จริง:
+//  - ถ้าตั้ง STREAM_RELAY_BASE (Cloudflare Worker) → browser ผู้ชมเรียก Worker ตรง
+//    (Vercel egress โดน Cloudflare แชลเลนจ์ที่ workers.dev จึงห้ามให้ Vercel เป็นคนกลาง)
+//  - ถ้าไม่มี → ใช้ /api/proxy/stream ของตัวเอง (เหมาะกับ server ที่ IP ไม่โดนแบน เช่น local)
+const RELAY_BASE = (process.env.STREAM_RELAY_BASE || '').replace(/\/$/, '');
+const DOOBALL_REFERER = 'https://dooball99.top/';
+
+function buildStreamUrl(m3u8Url: string): string {
+    if (RELAY_BASE) {
+        return `${RELAY_BASE}/stream?url=${encodeURIComponent(m3u8Url)}&referer=${encodeURIComponent(DOOBALL_REFERER)}`;
+    }
+    return `/api/proxy/stream?url=${encodeURIComponent(m3u8Url)}`;
+}
+
+// URL หลัก (โดยไม่มี url param) ให้ player ไปร้องเองกับ candidates ที่สุ่มเลือกเอง
+function relayDirectBase(): string | null {
+    return RELAY_BASE ? `${RELAY_BASE}/stream` : null;
+}
+
 export async function GET(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
     const rateCheck = checkRateLimit(`resolve_${ip}`, 30, 60 * 1000);
@@ -47,12 +66,12 @@ export async function GET(req: NextRequest) {
         // 1. Check cache first
         const cached = resolveCache.get(targetUrl);
         if (!noCache && cached && cached.expiresAt > now) {
-            const proxyStreamUrl = `/api/proxy/stream?url=${encodeURIComponent(cached.m3u8Url)}`;
             return NextResponse.json({
                 success: true,
                 source: 'cache',
                 rawM3u8Url: cached.m3u8Url,
-                streamUrl: proxyStreamUrl,
+                streamUrl: buildStreamUrl(cached.m3u8Url),
+                relayDirect: relayDirectBase(),
             });
         }
 
@@ -215,14 +234,15 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        // Automatically wrap with our Stream Proxy for anti-hotlink referer bypass
-        const proxyStreamUrl = `/api/proxy/stream?url=${encodeURIComponent(rawM3u8Url)}`;
+        // Automatically wrap with relay/proxy for the referer the upstream expects
+        const streamUrl = buildStreamUrl(rawM3u8Url);
 
         return NextResponse.json({
             success: true,
             source: 'live_resolved',
             rawM3u8Url,
-            streamUrl: proxyStreamUrl,
+            streamUrl,
+            relayDirect: relayDirectBase(),
             allCandidates: uniqueMatches,
         });
 
