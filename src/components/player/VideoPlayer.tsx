@@ -169,13 +169,17 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
                 .then((data) => {
                     if (!isCancelled) {
                         if (data && data.success && data.streamUrl) {
-                            // ตั้งค่าการเล่นสตรีมแบบตรง: ถ้ามี rawM3u8Url → ให้ browser ผู้ชมโหลดเอง (ไม่ผ่าน proxy เพราะ host บล็อก IP Vercel)
+                            // เสมอเล่นผ่าน /api/proxy/stream — host .sbs ตรวจ Referer (browser ตั้งเองไม่ได้ → เล่นตรงได้แน่ 403)
+                            // proxy ตั้ง Referer dooball99.top ให้ + egress ผ่าน relay ที่ upstream ไม่แบน
                             // สุ่มเลือกจาก candidates ทั้งหมด (ต้นทางใช้ 14 endpoint ซ้อนกันเป็น redundancy บางตัวอาจออฟไลน์)
-                            // แต่ถ้าไม่มี rawM3u8Url (บางกรณีต้องใช้ proxy เพราะกด anti-hotlink) ให้ใช้ proxy ตามเดิม
                             const candidates: string[] = (data.allCandidates && data.allCandidates.length) ? data.allCandidates : [data.rawM3u8Url].filter(Boolean);
-                            const pickedUrl = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : data.streamUrl;
-                            setResolvedFromPageUrl(pickedUrl);
-                            setIsDirectResolve(Boolean(pickedUrl && data.rawM3u8Url));
+                            const pickedUrl = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : data.rawM3u8Url || '';
+                            if (pickedUrl) {
+                                setResolvedFromPageUrl(`/api/proxy/stream?url=${encodeURIComponent(pickedUrl)}`);
+                            } else {
+                                setResolvedFromPageUrl(data.streamUrl);
+                            }
+                            setIsDirectResolve(false);
                         } else {
                             // Fallback: ถ้าแกะ M3U8 ไม่ได้ให้ใช้ URL เดิม
                             setResolvedFromPageUrl(rawCleanUrl);
@@ -208,14 +212,14 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
     // เลือกระหว่าง URL ที่แกะเสร็จแล้ว หรือ URL ดั้งเดิม
     const cleanUrl = resolvedFromPageUrl || rawCleanUrl;
 
-    // ตรวจสอบและแปลงลิงก์ที่ติด Anti-Hotlink (เช่น domainkqt.cc, .flv, หรือ *.sbs) ให้ผ่าน Stream Proxy อัตโนมัติ
     const rawIsFlv = cleanUrl.includes('.flv') && !cleanUrl.includes('.m3u8');
-    // isDirectResolve: ได้ m3u8 จาก resolve มาแบบตรงแล้ว → ให้เล่นตรงจาก browser (host เปิด CORS; ผ่าน proxy บน Vercel จะโดน upstream บล็อก 403 แทน)
-    const resolvedUrl = (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream')
-        ? `/api/proxy/stream?url=${encodeURIComponent(cleanUrl)}${rawIsFlv ? '&raw=true' : ''}`
-        : cleanUrl;
+    // finalResolvedUrl: isDirectResolve=true → เล่นจาก browser โดยตรง (CORS); otherwise anti-hotlink → ผ่าน proxy
+    const finalResolvedUrl = isDirectResolve ? cleanUrl :
+        (cleanUrl.includes('domainkqt.cc') || cleanUrl.includes('.flv') || cleanUrl.includes('.sbs') || cleanUrl.includes('do-ball.com')) && !cleanUrl.startsWith('/api/proxy/stream')
+            ? `/api/proxy/stream?url=${encodeURIComponent(cleanUrl)}${rawIsFlv ? '&raw=true' : ''}`
+            : cleanUrl;
+    const resolvedUrl = finalResolvedUrl;
 
-    // หมายเหตุ: ต้องเช็คจากลิงก์ต้นทาง (cleanUrl) ไม่ใช่ resolvedUrl เพราะหลังถูก encode ผ่าน proxy แล้ว ".flv" ยังค้างอยู่ใน query ทำให้แยกแยะไม่ได้
     const isHls = !rawIsFlv && (resolvedUrl.includes('.m3u8') || resolvedUrl.includes('/api/proxy/stream') || resolvedUrl.includes('playlist'));
     const isEmbed = !isHls && (
         resolvedUrl.includes('youtube.com') ||

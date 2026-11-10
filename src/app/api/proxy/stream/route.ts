@@ -10,6 +10,25 @@ export const dynamic = 'force-dynamic';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 
+// 🎯 Relay egress: host .sbs แบนช่วง IP ของ Vercel (403 เสมอ แม้ Referer/Origin ถูก)
+// เส้นทางเดียวที่ upstream ยอมรับ = IP ไม่โดนแบน + Referer dooball99.top
+// ตั้ง STREAM_RELAY_BASE เป็น URL ของ Cloudflare Worker relay (ดู README ใน /worker)
+// ถ้าไม่ตั้ง → ยิง upstream ตรงเหมือนเดิม (ต้องยอม 403 จนกว่าจะ deploy)
+const RELAY_BASE = (process.env.STREAM_RELAY_BASE || '').replace(/\/$/, '');
+const RELAY_KEY = process.env.STREAM_RELAY_KEY || '';
+
+function relayedFetchUrl(upstreamUrl: string, referer: string): string | null {
+    if (!RELAY_BASE) return null;
+    try {
+        const u = new URL('/stream', RELAY_BASE);
+        u.searchParams.set('url', upstreamUrl);
+        u.searchParams.set('referer', referer);
+        return u.href;
+    } catch {
+        return null;
+    }
+}
+
 // 🔒 CORS แบบ allowlist: ตอบเฉพาะ origin ที่ผ่านการตรวจเท่านั้น (ห้าม '*' เด็ดขาด)
 // เพื่อไม่ให้เว็บอื่นฝัง player ชี้มาที่ /api/proxy/stream ของเราดูดสตรีมฟรี
 // หา domain ปลายทางที่ผู้ชมใช้เข้ามาจริง: ตอนรันหลังรีเวิร์สโปรกซี/Vercel header Host จะถูกเขียนเป็น
@@ -152,14 +171,32 @@ export async function GET(request: NextRequest) {
             origin = 'https://dooball99.top';
         }
 
-        const upstreamResponse = await fetchWithGuard(fetchUrl, {
-            headers: {
-                'Referer': referer,
-                'Origin': origin,
-                'User-Agent': UA,
-                'Accept': '*/*',
-            },
-        }, { timeoutMs: 8000 });
+        async function upstreamFetch(url: string) {
+            const relayUrl = relayedFetchUrl(url, referer);
+            if (relayUrl) {
+                const relayRes = await fetchWithGuard(relayUrl, {
+                    headers: {
+                        'X-Relay-Key': RELAY_KEY,
+                        'User-Agent': UA,
+                        'Accept': '*/*',
+                        ...(request.headers.get('range') ? { 'Range': request.headers.get('range') as string } : {}),
+                    },
+                }, { timeoutMs: 12000 });
+                // relay ล้ม → ยิงตรงซ้ำเพื่อความครอบคลุม (กรณี .sbs ทบทวนแบน/relay down)
+                if (relayRes.ok) return relayRes;
+            }
+            return fetchWithGuard(url, {
+                headers: {
+                    'Referer': referer,
+                    'Origin': origin,
+                    'User-Agent': UA,
+                    'Accept': '*/*',
+                    ...(request.headers.get('range') && !relayUrl ? { 'Range': request.headers.get('range') as string } : {}),
+                },
+            }, { timeoutMs: 8000 });
+        }
+
+        const upstreamResponse = await upstreamFetch(fetchUrl);
 
         if (!upstreamResponse.ok) {
             // Fallback: if .m3u8 failed and original was .flv, try streaming original .flv
@@ -243,10 +280,18 @@ export async function GET(request: NextRequest) {
         }
 
         // For binary streams (e.g. direct TS / FLV / MP4)
+        const rangeHeaders: Record<string, string> = {};
+        const contentRange = upstreamResponse.headers.get('content-range');
+        if (upstreamResponse.status === 206 || contentRange) {
+            rangeHeaders['Accept-Ranges'] = 'bytes';
+            rangeHeaders['Status'] = String(upstreamResponse.status);
+            if (contentRange) rangeHeaders['X-Content-Range'] = contentRange;
+        }
         return new NextResponse(upstreamResponse.body, {
             status: 200,
             headers: {
                 'Content-Type': contentType || 'video/mp2t',
+                ...rangeHeaders,
                 ...corsHeaders,
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
             },
