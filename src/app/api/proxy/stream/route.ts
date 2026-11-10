@@ -171,7 +171,8 @@ export async function GET(request: NextRequest) {
             origin = 'https://dooball99.top';
         }
 
-        async function upstreamFetch(url: string) {
+        // 🩺 รายงานสถานะ relay กลับไปใน error เพื่อวินิจฉัยจากภายนอกได้ (relay:ok / relay:403 / off)
+        async function upstreamFetch(url: string): Promise<{ res: Response; relayNote: string }> {
             const relayUrl = relayedFetchUrl(url, referer);
             if (relayUrl) {
                 const relayRes = await fetchWithGuard(relayUrl, {
@@ -183,20 +184,31 @@ export async function GET(request: NextRequest) {
                     },
                 }, { timeoutMs: 12000 });
                 // relay ล้ม → ยิงตรงซ้ำเพื่อความครอบคลุม (กรณี .sbs ทบทวนแบน/relay down)
-                if (relayRes.ok) return relayRes;
+                if (relayRes.ok) return { res: relayRes, relayNote: 'ok' };
+                const directRes = await fetchWithGuard(url, {
+                    headers: {
+                        'Referer': referer,
+                        'Origin': origin,
+                        'User-Agent': UA,
+                        'Accept': '*/*',
+                        ...(request.headers.get('range') ? { 'Range': request.headers.get('range') as string } : {}),
+                    },
+                }, { timeoutMs: 8000 });
+                return { res: directRes, relayNote: `relay:${relayRes.status}->direct:${directRes.status}` };
             }
-            return fetchWithGuard(url, {
+            const directRes = await fetchWithGuard(url, {
                 headers: {
                     'Referer': referer,
                     'Origin': origin,
                     'User-Agent': UA,
                     'Accept': '*/*',
-                    ...(request.headers.get('range') && !relayUrl ? { 'Range': request.headers.get('range') as string } : {}),
+                    ...(request.headers.get('range') ? { 'Range': request.headers.get('range') as string } : {}),
                 },
             }, { timeoutMs: 8000 });
+            return { res: directRes, relayNote: 'off' };
         }
 
-        const upstreamResponse = await upstreamFetch(fetchUrl);
+        const { res: upstreamResponse, relayNote } = await upstreamFetch(fetchUrl);
 
         if (!upstreamResponse.ok) {
             // Fallback: if .m3u8 failed and original was .flv, try streaming original .flv
@@ -221,7 +233,7 @@ export async function GET(request: NextRequest) {
                 }
             }
 
-            return new NextResponse(`Upstream returned ${upstreamResponse.status}: ${upstreamResponse.statusText}`, {
+            return new NextResponse(`Upstream returned ${upstreamResponse.status}: ${upstreamResponse.statusText} [${relayNote}]`, {
                 status: upstreamResponse.status,
                 headers: corsHeaders,
             });
