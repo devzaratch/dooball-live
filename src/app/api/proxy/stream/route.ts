@@ -185,6 +185,9 @@ export async function GET(request: NextRequest) {
                 }, { timeoutMs: 12000 });
                 // relay ล้ม → ยิงตรงซ้ำเพื่อความครอบคลุม (กรณี .sbs ทบทวนแบน/relay down)
                 if (relayRes.ok) return { res: relayRes, relayNote: 'ok' };
+                // 🩺 เก็บหัว body ของ relay failure เพื่อแยกว่า 403 นี้มาจาก key (Forbidden ของเรา) หรือ Cloudflare WAF (HTML challenge) หรือ upstream
+                let relayBody = '';
+                try { relayBody = (await relayRes.text()).replace(/\s+/g, ' ').slice(0, 70); } catch { /* ignore */ }
                 const directRes = await fetchWithGuard(url, {
                     headers: {
                         'Referer': referer,
@@ -194,7 +197,7 @@ export async function GET(request: NextRequest) {
                         ...(request.headers.get('range') ? { 'Range': request.headers.get('range') as string } : {}),
                     },
                 }, { timeoutMs: 8000 });
-                return { res: directRes, relayNote: `relay:${relayRes.status}->direct:${directRes.status}` };
+                return { res: directRes, relayNote: `relay:${relayRes.status}:${relayBody}->direct:${directRes.status}` };
             }
             const directRes = await fetchWithGuard(url, {
                 headers: {
