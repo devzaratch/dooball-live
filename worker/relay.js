@@ -87,6 +87,42 @@ export default {
 			out.set('Vary', 'Origin');
 		}
 		out.set('Cache-Control', 'no-store');
+
+		// 📝 m3u8: revise ทุกบรรทัดให้ยิงกลับเข้า /stream ของ Worker เอง
+		const ct = (upstream.headers.get('content-type') || '').toLowerCase();
+		const isHls = ct.includes('mpegurl') || parsed.pathname.endsWith('.m3u8');
+		if (isHls) {
+			const selfOrigin = url.origin;
+			const text = await upstream.text();
+			const baseUrl = parsed;
+			const lines = text.split('\n').map((line) => {
+				const t = line.trim();
+				if (!t) return line;
+				if (t.startsWith('#')) {
+					// #EXT-X-KEY URI="..." ต้อง wrap ด้วย
+					if (t.includes('URI="')) {
+						return t.replace(/URI="([^"]+)"/g, (m0, uri) => {
+							try {
+								const abs = new URL(uri, baseUrl).href;
+								return `URI="${selfOrigin}/stream?url=${encodeURIComponent(abs)}&referer=${encodeURIComponent(referer)}"`;
+							} catch {
+								return m0;
+							}
+						});
+					}
+					return line;
+				}
+				try {
+					const abs = new URL(t, baseUrl).href;
+					return `${selfOrigin}/stream?url=${encodeURIComponent(abs)}&referer=${encodeURIComponent(referer)}`;
+				} catch {
+					return line;
+				}
+			});
+			out.set('Content-Type', 'application/vnd.apple.mpegurl');
+			return new Response(lines.join('\n'), { status: 200, headers: out });
+		}
+
 		return new Response(upstream.body, { status: upstream.status, headers: out });
 	},
 };
