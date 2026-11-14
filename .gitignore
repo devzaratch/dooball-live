@@ -52,3 +52,6 @@ telegram-inbox.json
 
 # Agent internal config
 .agents/
+
+next*.log
+next*-err.log
