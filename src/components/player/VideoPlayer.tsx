@@ -175,7 +175,7 @@ export default function VideoPlayer({ streamUrl, poster, matchSlug, onAutoFallba
                             // 3) /api/proxy/stream ของ server เอง — เผื่อ config relay ยังไม่ครบ
                             const candidates: string[] = (data.allCandidates && data.allCandidates.length) ? data.allCandidates : [data.rawM3u8Url].filter(Boolean);
                             const pickedUrl = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : data.rawM3u8Url || '';
-                            const DOOBALL_REFERER_ENC = 'https%3A%2F%2Fdooball99.top%2F';
+                            const DOOBALL_REFERER_ENC = 'https%3A%2F%2Fdooball99-s.com%2F';
                             if (data.relayDirect && pickedUrl) {
                                 setResolvedFromPageUrl(`${data.relayDirect}?url=${encodeURIComponent(pickedUrl)}&referer=${DOOBALL_REFERER_ENC}`);
                             } else if (pickedUrl) {

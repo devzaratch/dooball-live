@@ -167,8 +167,8 @@ export async function GET(request: NextRequest) {
             referer = 'https://x1365.hexvaridstreamnode.com/';
             origin = 'https://x1365.hexvaridstreamnode.com';
         } else if (targetUrl.includes('sbs') || targetUrl.includes('do-ball.com') || targetUrl.includes('dooball99')) {
-            referer = 'https://dooball99.top/';
-            origin = 'https://dooball99.top';
+            referer = 'https://dooball99-s.com/';
+            origin = 'https://dooball99-s.com';
         }
 
         // 🩺 รายงานสถานะ relay กลับไปใน error เพื่อวินิจฉัยจากภายนอกได้ (relay:ok / relay:403 / off)

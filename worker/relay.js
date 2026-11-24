@@ -6,7 +6,7 @@
 // ตัวต้นทางยังถูกจำกัด: เฉพาะ https + hostname ลงท้าย .sbs (ห้ามกลายเป็น open proxy)
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
-const DEFAULT_REFERER = 'https://dooball99.top/';
+const DEFAULT_REFERER = 'https://dooball99-s.com/';
 
 const SITE_ORIGINS = ['https://dooball-laos.vercel.app'];
 const PASS_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges'];

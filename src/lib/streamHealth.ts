@@ -13,6 +13,9 @@ export async function checkStreamHealth(url: string, timeoutMs = 3000): Promise<
             signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) DoBallLaos-HealthCheck/1.0',
+                // upstream .sbs ตรวจ Referer — ถ้าไม่ส่งจะโดน 403 ทุกช่อง
+                'Referer': 'https://dooball99-s.com/',
+                'Origin': 'https://dooball99-s.com',
             },
         });
 

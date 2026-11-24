@@ -27,7 +27,7 @@ function putCache(key: string, item: CacheItem) {
 //    (Vercel egress โดน Cloudflare แชลเลนจ์ที่ workers.dev จึงห้ามให้ Vercel เป็นคนกลาง)
 //  - ถ้าไม่มี → ใช้ /api/proxy/stream ของตัวเอง (เหมาะกับ server ที่ IP ไม่โดนแบน เช่น local)
 const RELAY_BASE = (process.env.STREAM_RELAY_BASE || '').replace(/\/$/, '');
-const DOOBALL_REFERER = 'https://dooball99.top/';
+const DOOBALL_REFERER = 'https://dooball99-s.com/';
 
 function buildStreamUrl(m3u8Url: string): string {
     if (RELAY_BASE) {
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
         const FIXTURE_HEADERS: Record<string, string> = {
             'User-Agent': UA,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Referer': 'https://dooball99.top/',
+            'Referer': 'https://dooball99-s.com/',
         };
 
         let html = '';
@@ -96,8 +96,12 @@ export async function GET(req: NextRequest) {
 
         // 2a. dooball99.top บล็อก egress IP ของ Vercel (403) → วนลองเฉพาะมิเรอร์ที่ยังไม่บล็อก
         //     (เป็นเว็บเดียวกันทั้ง 3 โดเมน: ข้างหน้าเผลอเดียวกัน id หน้า fixture ใช้ร่วมกัน, มี var POOL แบบเดียวกัน)
+        // โดเมนที่ผู้ใช้ส่งเข้ามาต้องลองก่อนเสมอ (upstream เปลี่ยนโดเมนบ่อย)
+        const incomingHost = (() => {
+            try { return new URL(resolvedTargetUrl).hostname; } catch { return ''; }
+        })();
         const relayHosts = fixtureId
-            ? ['dooball99.top', 'dooball66-hd.com', 'dooballonline.live']
+            ? [...new Set([incomingHost, 'dooball99-s.com', 'dooball99.top', 'dooball66-hd.com', 'dooballonline.live'].filter(Boolean))]
             : [];
         const candidateUrls = fixtureId
             ? relayHosts.map((host) => `https://${host}/fixtures/${fixtureId}`)
@@ -174,11 +178,12 @@ export async function GET(req: NextRequest) {
 
         // 3c. รูปแบบเก่า (เส้นทางสำรอง): POST /api/v1/fixture-channels/{id} → channels[].u
         const jwStreams: string[] = [];
-        const fixtureMatch = resolvedTargetUrl.match(/dooball\d*\.top\/fixtures\/(\d+)/);
+        const fixtureMatch = resolvedTargetUrl.match(/\/fixtures\/(\d+)/);
         if (fixtureMatch && inlineStreams.length === 0) {
             const id = fixtureMatch[1];
+            const upstreamOrigin = new URL(resolvedTargetUrl).origin;
             try {
-                const apiResp = await fetchWithGuard(`https://dooball99.top/api/v1/fixture-channels/${id}`, {
+                const apiResp = await fetchWithGuard(`${upstreamOrigin}/api/v1/fixture-channels/${id}`, {
                     method: 'POST',
                     headers: {
                         'User-Agent': UA,
