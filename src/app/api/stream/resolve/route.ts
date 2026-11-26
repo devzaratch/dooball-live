@@ -93,6 +93,36 @@ export async function GET(req: NextRequest) {
 
         let html = '';
         let fetchTrace = '';
+        const remoteStreams: string[] = [];
+
+        // 2-pre. Vercel egress โดน upstream 403 (Cloudflare บล็อก IP datacenter) →
+        // ให้ Cloudflare Worker ดึงหน้า fixture แทน แล้วส่งรายการ stream กลับมาเป็น JSON
+        if (fixtureId && RELAY_BASE) {
+            const relayKey = process.env.STREAM_RELAY_KEY || '';
+            try {
+                const relayRes = await fetchWithGuard(
+                    `${RELAY_BASE}/fixture?id=${fixtureId}`,
+                    { headers: relayKey ? { 'X-Relay-Key': relayKey } : {} },
+                    { timeoutMs: 20000 }
+                );
+                if (relayRes.ok) {
+                    const data = (await relayRes.json()) as { host?: string; pool?: string[]; trace?: string[] };
+                    if (Array.isArray(data.pool)) {
+                        data.pool.forEach((u) => {
+                            if (typeof u === 'string' && u.startsWith('http')) remoteStreams.push(u);
+                        });
+                    }
+                    if (data.host && remoteStreams.length > 0) {
+                        resolvedTargetUrl = `https://${data.host}/fixtures/${fixtureId}`;
+                    }
+                    fetchTrace += ` worker:${data.host || 'none'}:${remoteStreams.length}${data.trace?.length ? `(${data.trace.join(',')})` : ''}`;
+                } else {
+                    fetchTrace += ` worker:${relayRes.status}`;
+                }
+            } catch {
+                fetchTrace += ' workerERR';
+            }
+        }
 
         // 2a. dooball99.top บล็อก egress IP ของ Vercel (403) → วนลองเฉพาะมิเรอร์ที่ยังไม่บล็อก
         //     (เป็นเว็บเดียวกันทั้ง 3 โดเมน: ข้างหน้าเผลอเดียวกัน id หน้า fixture ใช้ร่วมกัน, มี var POOL แบบเดียวกัน)
@@ -107,7 +137,7 @@ export async function GET(req: NextRequest) {
             ? relayHosts.map((host) => `https://${host}/fixtures/${fixtureId}`)
             : [resolvedTargetUrl];
 
-        for (const candidateUrl of candidateUrls) {
+        for (const candidateUrl of (remoteStreams.length > 0 ? [] : candidateUrls)) {
             try {
                 const response = await fetchWithGuard(candidateUrl, { headers: FIXTURE_HEADERS }, { timeoutMs: 8000 });
                 if (response.ok) {
@@ -127,7 +157,7 @@ export async function GET(req: NextRequest) {
         }
 
         // 2b. Fallback: ถ้า HTML ว่างหรือไม่มี POOL/m3u8 (โดนบล็อก/Cloudflare challenge) → ผ่าน HTML proxy
-        if (!html.includes('var POOL') && !html.includes('.m3u8')) {
+        if (remoteStreams.length === 0 && !html.includes('var POOL') && !html.includes('.m3u8')) {
             const proxyList = [
                 `https://api.allorigins.win/raw?url=${encodeURIComponent(resolvedTargetUrl)}`,
                 `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(resolvedTargetUrl)}`,
@@ -179,7 +209,7 @@ export async function GET(req: NextRequest) {
         // 3c. รูปแบบเก่า (เส้นทางสำรอง): POST /api/v1/fixture-channels/{id} → channels[].u
         const jwStreams: string[] = [];
         const fixtureMatch = resolvedTargetUrl.match(/\/fixtures\/(\d+)/);
-        if (fixtureMatch && inlineStreams.length === 0) {
+        if (fixtureMatch && inlineStreams.length === 0 && remoteStreams.length === 0) {
             const id = fixtureMatch[1];
             const upstreamOrigin = new URL(resolvedTargetUrl).origin;
             try {
@@ -210,8 +240,13 @@ export async function GET(req: NextRequest) {
         }
 
         // Combine and deduplicate
-        const allMatches = [...m3u8Matches, ...inlineStreams, ...jwStreams];
+        const allMatches = [...remoteStreams, ...m3u8Matches, ...inlineStreams, ...jwStreams];
         const uniqueMatches = [...new Set(allMatches)];
+        // upstream เริ่มมีโฮสต์สตรีมนอก .sbs (เช่น bantomkuayrai.top) แต่ Worker รับเฉพาะ .sbs → จัด .sbs ขึ้นก่อน
+        const isSbsHost = (u: string) => {
+            try { return new URL(u).hostname.endsWith('.sbs'); } catch { return false; }
+        };
+        uniqueMatches.sort((a, b) => Number(isSbsHost(b)) - Number(isSbsHost(a)));
 
         if (uniqueMatches.length === 0) {
             return NextResponse.json({

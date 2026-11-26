@@ -11,6 +11,103 @@ const DEFAULT_REFERER = 'https://dooball99-s.com/';
 const SITE_ORIGINS = ['https://dooball-laos.vercel.app'];
 const PASS_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
 
+// 🎯 โดเมนหน้า fixture ที่อนุญาตให้ Worker ไปดึงแทน (upstream บล็อก IP datacenter เช่น Vercel → 403)
+const FIXTURE_HOSTS = [
+	'dooball99-s.com',
+	'dooball99.top',
+	'dooball99.to',
+	'dooball66-hd.com',
+	'dooballonline.live',
+	'dooballlaos.com',
+];
+
+// ถอด POOL: {"img": "...", "u": "<base64 ของ URL ที่ reverse กลับด้าน>"}
+function decodePoolEntry(u) {
+	try {
+		const b64 = String(u).replace(/-/g, '+').replace(/_/g, '/');
+		const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+		const raw = atob(padded);
+		// atob ให้ binary string (URL เป็น ASCII) → reverse กลับด้าน
+		return raw.split('').reverse().join('');
+	} catch {
+		return '';
+	}
+}
+
+function extractStreams(html) {
+	const out = [];
+	const m = html.match(/var\s+POOL\s*=\s*(\[[\s\S]*?\])\s*;/);
+	if (m) {
+		try {
+			const pool = JSON.parse(m[1]);
+			for (const c of pool) {
+				const u = c && c.u ? decodePoolEntry(c.u) : '';
+				if (u.startsWith('http')) out.push(u);
+			}
+		} catch { /* โครงสร้างเพี้ยน → ลองแบบ regex ด้านล่าง */ }
+	}
+	// เผื่อกรณีหน้า HTML ฝัง .m3u8 ตรง ๆ
+	const direct = html.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/gi) || [];
+	return [...new Set([...out, ...direct])];
+}
+
+async function handleFixture(request, env, url) {
+	const siteOrigin = siteOriginOf(request);
+	const expectedKey = env.RELAY_KEY || '';
+	const givenKey = request.headers.get('X-Relay-Key') || '';
+	const keyOk = Boolean(expectedKey) && givenKey === expectedKey;
+	if (!keyOk && !siteOrigin) return jsonResponse({ ok: false, error: 'forbidden' }, 403, siteOrigin);
+
+	const id = (url.searchParams.get('id') || '').replace(/[^0-9]/g, '');
+	const hostParam = (url.searchParams.get('host') || '').trim().toLowerCase();
+	if (!id) return jsonResponse({ ok: false, error: 'missing id' }, 400, siteOrigin);
+
+	const hosts = hostParam && FIXTURE_HOSTS.includes(hostParam)
+		? [hostParam, ...FIXTURE_HOSTS.filter((h) => h !== hostParam)]
+		: FIXTURE_HOSTS;
+
+	const trace = [];
+	for (const host of hosts) {
+		const target = `https://${host}/fixtures/${id}`;
+		try {
+			const res = await fetch(target, {
+				headers: {
+					'User-Agent': UA,
+					'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+					'Accept-Language': 'th,en;q=0.9',
+					'Referer': `https://${host}/`,
+				},
+				redirect: 'follow',
+				cf: { cacheTtl: 0 },
+			});
+			if (!res.ok) {
+				trace.push(`${host}:${res.status}`);
+				continue;
+			}
+			const html = await res.text();
+			const streams = extractStreams(html);
+			if (streams.length > 0) {
+				return jsonResponse({ ok: true, host, id, pool: streams, trace }, 200, siteOrigin);
+			}
+			trace.push(`${host}:no_stream`);
+		} catch (e) {
+			trace.push(`${host}:err`);
+		}
+	}
+	return jsonResponse({ ok: false, error: 'no_stream', trace }, 404, siteOrigin);
+}
+
+function jsonResponse(body, status, siteOrigin) {
+	const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
+	if (siteOrigin) {
+		headers['Access-Control-Allow-Origin'] = siteOrigin;
+		headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
+		headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Relay-Key';
+		headers['Vary'] = 'Origin';
+	}
+	return new Response(JSON.stringify(body), { status, headers });
+}
+
 function siteOriginOf(request) {
 	const origin = (request.headers.get('Origin') || '').trim();
 	let ok = SITE_ORIGINS.includes(origin);
@@ -41,6 +138,10 @@ export default {
 					'Vary': 'Origin',
 				},
 			});
+		}
+		if (url.pathname === '/fixture') {
+			if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
+			return handleFixture(request, env, url);
 		}
 		if (url.pathname !== '/stream') return new Response('Not found', { status: 404 });
 		if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
